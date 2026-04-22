@@ -57,6 +57,8 @@
   .panel-body { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
   .resize-handle { position: absolute; bottom: 0; right: 0; width: 16px; height: 16px; cursor: nwse-resize; }
   .resize-handle::after { content: ''; position: absolute; bottom: 3px; right: 3px; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); opacity: 0.5; }
+  .region-badge { display:inline-flex; align-items:center; font-size:10px; padding:1px 7px; border-radius:10px; background:#1e3a5a; border:1px solid var(--accent); color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; cursor:default; flex-shrink:0; }
+  .region-badge.global { background:none; border-color:var(--border); color:var(--muted); font-size:14px; padding:0 3px; }
   /* compat aliases for existing inner styles */
   .rail-hdr { padding: 6px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
   .rail-hdr .title { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
@@ -182,6 +184,8 @@
         <span class="ptitle">&#x1F30D; Map</span>
         <button id="btn2d" class="pwin active" title="2D map">2D</button>
         <button id="btn3d" class="pwin" title="3D globe">3D</button>
+        <span id="regionBadge" class="region-badge global" title="Viewing globally &#x2014; zoom in to auto-focus">&#x1F30D;</span>
+        <button id="btnGlobal" class="pwin" style="display:none;font-size:11px" title="Reset to global view">&#x1F30D; Global</button>
         <button class="pwin pmin" data-panel="panel-map" title="Minimise">&#x2212;</button>
       </div>
       <div class="panel-body" style="position:relative;overflow:hidden">
@@ -271,28 +275,129 @@ const FEEDS = [
   { id:"hn",         name:"HN",          kind:"hn",     url:"https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=25" },
   { id:"wikinews",   name:"Wikinews",    kind:"wikinews", url:"https://en.wikinews.org/w/api.php?action=query&list=recentchanges&rcnamespace=0&rcshow=!minor&rctype=new&rclimit=25&format=json&origin=*" },
   { id:"gdelt",      name:"GDELT",       kind:"gdelt",  url:"https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:eng&mode=artlist&maxrecords=30&format=json&timespan=6h&sort=datedesc" },
+  // Regional feeds — off by default; auto-surfaced in focus mode
+  { id:"cnn",       name:"CNN",             kind:"rss", url:"http://rss.cnn.com/rss/cnn_topstories.rss",                                          region:"us",        defaultOff:true },
+  { id:"skynewsuk", name:"Sky News UK",     kind:"rss", url:"https://feeds.skynews.com/feeds/rss/world.xml",                                      region:"uk",        defaultOff:true },
+  { id:"euronews_r",name:"Euronews",        kind:"rss", url:"https://www.euronews.com/rss?format=mrss&level=theme&name=news",                     region:"europe",    defaultOff:true },
+  { id:"rfi",       name:"RFI",             kind:"rss", url:"https://www.rfi.fr/en/rss",                                                          region:"africa",    defaultOff:true },
+  { id:"scmp",      name:"SCMP",            kind:"rss", url:"https://www.scmp.com/rss/91/feed",                                                   region:"eastasia",  defaultOff:true },
+  { id:"japantimes",name:"Japan Times",     kind:"rss", url:"https://japantimes.co.jp/feed/",                                                     region:"eastasia",  defaultOff:true },
+  { id:"thehindu",  name:"The Hindu",       kind:"rss", url:"https://www.thehindu.com/feeder/default.rss",                                        region:"southasia", defaultOff:true },
+  { id:"timesofis", name:"Times of Israel", kind:"rss", url:"https://www.timesofisrael.com/feed/",                                                region:"mideast",   defaultOff:true },
+  { id:"mercopress",name:"Merco Press",     kind:"rss", url:"https://en.mercopress.com/rss.xml",                                                  region:"latam",     defaultOff:true },
+  { id:"abcau_rss", name:"ABC AU News",     kind:"rss", url:"https://www.abc.net.au/news/feed/52498/rss.xml",                                    region:"oceania",   defaultOff:true },
+  { id:"rferl",     name:"RFE/RL",          kind:"rss", url:"https://www.rferl.org/api/zjqosuvtz_qovuu",                                         region:"russia",    defaultOff:true },
+  { id:"globemail", name:"Globe & Mail",    kind:"rss", url:"https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/world/",             region:"canada",    defaultOff:true },
 ];
 
 const CHANNELS = [
-  // News
-  { id:"bbcnews",   name:"BBC News",      yt:"UC16niRr50-MSBwiO3YDb3RA" },
-  { id:"aje",       name:"Al Jazeera",    yt:"UCNye-wNBqNL5ZzHSJj3l8Bg" },
-  { id:"dwnews",    name:"DW News",       yt:"UCknLrEdhRCp1aegoMqRaCZg" },
-  { id:"france24",  name:"France 24",     yt:"UCQfwfsi5VrQ8yKZ-UWmAEFg" },
-  { id:"nhk",       name:"NHK World",     yt:"UCSPEjw8F2nQDtmUKPFNF7_A" },
-  { id:"sky",       name:"Sky News",      yt:"UCoMdktPbSTixAyNGwb-UYkQ" },
-  { id:"bloomberg", name:"Bloomberg TV",  yt:"UCIALMKvObZNtJ6AmdCLP7Lg" },
-  { id:"cna",       name:"CNA",           yt:"UCFr3sz2t3bDp6Cux08B93KQ" },
-  { id:"euronews",  name:"Euronews",      yt:"UCSrZ1UkjJnG9WhrrcbxZApQ" },
-  { id:"abcau",     name:"ABC AU",        yt:"UCVgO39Bk5sMo66-6o6Spn6Q" },
-  { id:"cbcnews",   name:"CBC News",      yt:"UCuFFtHWoLl5fauMMD5Ww2jA" },
+  // Global news
+  { id:"bbcnews",   name:"BBC News",         yt:"UC16niRr50-MSBwiO3YDb3RA" },
+  { id:"aje",       name:"Al Jazeera",       yt:"UCNye-wNBqNL5ZzHSJj3l8Bg" },
+  { id:"dwnews",    name:"DW News",          yt:"UCknLrEdhRCp1aegoMqRaCZg" },
+  { id:"france24",  name:"France 24",        yt:"UCQfwfsi5VrQ8yKZ-UWmAEFg" },
+  { id:"bloomberg", name:"Bloomberg TV",     yt:"UCIALMKvObZNtJ6AmdCLP7Lg" },
+  // US
+  { id:"pbs",       name:"PBS NewsHour",     yt:"UC6ZFN9Tx6xh-skXCuRHCDpQ",  region:"us"        },
+  { id:"cspan",     name:"C-SPAN",           yt:"UCb--64Gl4FBEUnGE8VRHNBQ",  region:"us"        },
+  // Canada
+  { id:"cbcnews",   name:"CBC News",         yt:"UCuFFtHWoLl5fauMMD5Ww2jA",  region:"canada"    },
+  // UK
+  { id:"sky",       name:"Sky News UK",      yt:"UCoMdktPbSTixAyNGwb-UYkQ",  region:"uk"        },
+  { id:"gbnews",    name:"GB News",          yt:"UCJD_Vn2AClFxzrp1CbWLVug",  region:"uk"        },
+  // Europe
+  { id:"euronews",  name:"Euronews",         yt:"UCSrZ1UkjJnG9WhrrcbxZApQ",  region:"europe"    },
+  // Middle East
+  { id:"trt",       name:"TRT World",        yt:"UCg4QPHE39nGRWRm6LD5R_TQ",  region:"mideast"   },
+  { id:"i24",       name:"i24 News",         yt:"UCbJDm8MJzqnFEqANnB5x8rg",  region:"mideast"   },
+  // Africa
+  { id:"afrnews",   name:"Africanews",       yt:"UCWNq3KpBbG9kpFIEGIbzA6g",  region:"africa"    },
+  // South Asia
+  { id:"wion",      name:"WION",             yt:"UCjGLFiEGUKHUL2_s1VMFyDg",  region:"southasia" },
+  { id:"ndtv24",    name:"NDTV 24x7",        yt:"UCZFMm1mMw0F81Z37aaEzTUA",  region:"southasia" },
+  // East Asia
+  { id:"nhk",       name:"NHK World",        yt:"UCSPEjw8F2nQDtmUKPFNF7_A",  region:"eastasia"  },
+  { id:"cna",       name:"CNA",              yt:"UCFr3sz2t3bDp6Cux08B93KQ",  region:"eastasia"  },
+  { id:"cgtn",      name:"CGTN",             yt:"UCqMDNf3Pn0In6qGaC5T5_YA",  region:"eastasia"  },
+  // Latin America
+  { id:"telemundo", name:"Telemundo",        yt:"UCBOn5-LVXLlNwUUmzSqVEzA",  region:"latam"     },
+  // Oceania
+  { id:"abcau",     name:"ABC AU",           yt:"UCVgO39Bk5sMo66-6o6Spn6Q",  region:"oceania"   },
   // Space / Science
-  { id:"nasa",      name:"NASA TV",       yt:"UCLA_DiR1FfKNvjuUpBHmylQ" },
-  { id:"spacex",    name:"SpaceX",        yt:"UCtI0Hodo5o5dUb67FeUjAlg" },
-  { id:"nasajpl",   name:"NASA JPL",      yt:"UCryGec9PnBCTtfiShlH-WoA" },
+  { id:"nasa",      name:"NASA TV",          yt:"UCLA_DiR1FfKNvjuUpBHmylQ" },
+  { id:"spacex",    name:"SpaceX",           yt:"UCtI0Hodo5o5dUb67FeUjAlg" },
+  { id:"nasajpl",   name:"NASA JPL",         yt:"UCryGec9PnBCTtfiShlH-WoA" },
   // Webcams / Live
-  { id:"earthtv",   name:"EarthTV Cams",  yt:"UCJ3ZJagnMPFD5SPGU85YQTQ" },
-  { id:"weatherch", name:"Weather Ch.",   yt:"UCbyFYVMoQPPyJK2FdYn85ag" },
+  { id:"earthtv",   name:"EarthTV Cams",     yt:"UCJ3ZJagnMPFD5SPGU85YQTQ" },
+  { id:"weatherch", name:"Weather Ch.",      yt:"UCbyFYVMoQPPyJK2FdYn85ag" },
+];
+
+// ---------- REGIONS (for geographic focus mode) ----------
+const REGIONS = [
+  { id:"global",   name:"\uD83C\uDF0D Global",
+    bounds:null, keywords:[], feedIds:[], chIds:[] },
+  // Sub-national — checked before broader regions (smaller bounds win)
+  { id:"us_pnw",  name:"\uD83C\uDF32 Pacific NW",
+    bounds:[[41.9,-125.0],[49.1,-116.0]],
+    keywords:["Washington","Oregon","Seattle","Portland","Spokane","Olympia","Pacific Northwest","PNW","King County","Multnomah","Puget Sound"],
+    feedIds:["apnews","npr","reddit_n"],
+    chIds:["pbs","bbcnews","bloomberg"] },
+  // Countries / major regions
+  { id:"canada",  name:"\uD83C\uDDE8\uD83C\uDDE6 Canada",
+    bounds:[[42.0,-142.0],[84.0,-52.0]],
+    keywords:["Canada","Ottawa","Toronto","Vancouver","Quebec","Alberta","Trudeau","Canadian"],
+    feedIds:["cbc","globemail","apnews","guardian"],
+    chIds:["cbcnews","bbcnews","bloomberg"] },
+  { id:"us",      name:"\uD83C\uDDFA\uD83C\uDDF8 United States",
+    bounds:[[18.0,-130.0],[52.0,-65.0]],
+    keywords:["United States"," US ","America","Congress","White House","Pentagon","federal","Senate","Biden","Trump"],
+    feedIds:["cnn","npr","apnews","reddit_n","hn","gdelt"],
+    chIds:["pbs","cspan","bloomberg","bbcnews"] },
+  { id:"uk",      name:"\uD83C\uDDEC\uD83C\uDDE7 UK & Ireland",
+    bounds:[[49.0,-11.0],[61.0,2.5]],
+    keywords:["UK","Britain","England","Scotland","Wales","London","Westminster","Parliament","Ireland","Brexit","Sunak"],
+    feedIds:["bbc","guardian","skynewsuk"],
+    chIds:["bbcnews","sky","gbnews","bloomberg"] },
+  { id:"europe",  name:"\uD83C\uDDEA\uD83C\uDDFA Europe",
+    bounds:[[35.0,-10.0],[72.0,40.0]],
+    keywords:["Europe","EU","European","France","Germany","Italy","Spain","Poland","Brussels","NATO","Macron","Scholz","von der Leyen"],
+    feedIds:["france24","dw","euronews_r","bbc","guardian"],
+    chIds:["france24","dwnews","euronews","bloomberg"] },
+  { id:"russia",  name:"\uD83C\uDDF7\uD83C\uDDFA Russia & CIS",
+    bounds:[[40.0,22.0],[82.0,180.0]],
+    keywords:["Russia","Ukraine","Kremlin","Moscow","Putin","Belarus","Zelensky","NATO","Kyiv","Donbas","Minsk"],
+    feedIds:["rferl","bbc","guardian","france24","dw"],
+    chIds:["bbcnews","dwnews","france24","bloomberg"] },
+  { id:"mideast", name:"\uD83D\uDD4C Middle East",
+    bounds:[[10.0,25.0],[42.0,65.0]],
+    keywords:["Middle East","Israel","Gaza","Palestine","Iran","Saudi Arabia","Iraq","Syria","Yemen","Lebanon","Jordan","Egypt","UAE","Netanyahu","Tehran","Hamas"],
+    feedIds:["aljazeera","timesofis","bbc","apnews","france24"],
+    chIds:["aje","trt","i24","france24","bbcnews"] },
+  { id:"africa",  name:"\uD83C\uDF0D Africa",
+    bounds:[[-35.0,-18.0],[38.0,52.0]],
+    keywords:["Africa","Nigeria","Ethiopia","Kenya","South Africa","Egypt","Sudan","Ghana","Congo","Sahel","Nairobi","Lagos","Cairo"],
+    feedIds:["rfi","aljazeera","bbc","france24"],
+    chIds:["aje","afrnews","france24","bbcnews"] },
+  { id:"southasia",name:"\uD83C\uDDEE\uD83C\uDDF3 South Asia",
+    bounds:[[5.0,60.0],[40.0,100.0]],
+    keywords:["India","Pakistan","Bangladesh","Nepal","Sri Lanka","Modi","Kashmir","Mumbai","Delhi","Karachi","Dhaka"],
+    feedIds:["thehindu","nhk","bbc","apnews"],
+    chIds:["wion","ndtv24","cna","bbcnews"] },
+  { id:"eastasia", name:"\uD83D\uDDFE East Asia",
+    bounds:[[18.0,100.0],[55.0,150.0]],
+    keywords:["China","Japan","Korea","Taiwan","Hong Kong","Beijing","Tokyo","Seoul","Xi Jinping","semiconductor","TSMC","Kim Jong"],
+    feedIds:["nhk","scmp","japantimes","bbc","apnews"],
+    chIds:["nhk","cgtn","cna","bloomberg"] },
+  { id:"oceania",  name:"\uD83E\uDD98 Oceania",
+    bounds:[[-50.0,110.0],[-5.0,180.0]],
+    keywords:["Australia","New Zealand","Pacific","Sydney","Melbourne","Auckland","Canberra","Albanese"],
+    feedIds:["abcau_rss","bbc","apnews"],
+    chIds:["abcau","bbcnews","bloomberg"] },
+  { id:"latam",    name:"\uD83C\uDF0E Latin America",
+    bounds:[[-56.0,-82.0],[35.0,-35.0]],
+    keywords:["Latin America","Brazil","Mexico","Argentina","Colombia","Chile","Venezuela","Cuba","Peru","Lula","AMLO","Milei"],
+    feedIds:["mercopress","aljazeera","bbc","apnews","france24"],
+    chIds:["telemundo","bbcnews","france24","bloomberg"] },
 ];
 
 const LAYERS = [
@@ -312,7 +417,7 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 // ---------- STATE ----------
 const state = {
-  feeds:    new Set(FEEDS.map(f => f.id)),
+  feeds:    new Set(FEEDS.filter(f => !f.defaultOff).map(f => f.id)),
   layers:   new Set(LAYERS.filter(l => l.on).map(l => l.id)),
   channels: new Set(["bbcnews","aje","dwnews","france24"]),
   news: [], events: [],
@@ -325,6 +430,8 @@ const state = {
   customChannels: [],
   channelOrder: null,
   pollIntervalSecs: 60,
+  focusRegion: "global",
+  aircraftTrails: {},
 };
 
 function loadState() {
@@ -342,6 +449,7 @@ function loadState() {
     if (s.mode) state.mode = s.mode;
     if (s.pollIntervalSecs) state.pollIntervalSecs = s.pollIntervalSecs;
     if (s.pollFeedSecs) state.pollFeedSecs = s.pollFeedSecs;
+    if (s.focusRegion) state.focusRegion = s.focusRegion;
   } catch(e) {}
 }
 function saveState() {
@@ -353,6 +461,7 @@ function saveState() {
       autoplay: state.autoplay, timeHours: state.timeHours, mode: state.mode,
       pollIntervalSecs: state.pollIntervalSecs,
       pollFeedSecs: state.pollFeedSecs,
+      focusRegion: state.focusRegion,
     }));
   } catch(e) {}
 }
@@ -570,18 +679,45 @@ async function loadISS() {
   } catch(e) { console.warn("iss",e); return []; }
 }
 async function loadAircraft() {
-  // OpenSky blocks direct browser CORS — proxy via allorigins
+  const reg = activeRegion();
+  const now = Date.now();
   try {
-    const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://opensky-network.org/api/states/all");
-    const r = await fetchJSON(proxied);
-    const states = (r.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 200);
-    return states.map(s => ({
-      id:"ac:"+s[0], layer:"aircraft",
-      title: ((s[1]||s[0])||"  ").trim() + " · " + (s[2]||"?"),
-      ts: (r.time || Date.now()/1000)*1000,
-      lat: s[6], lng: s[5], alt: s[7], vel: s[9],
-      url: "https://opensky-network.org/aircraft-profile?icao24="+s[0],
-    }));
+    let aircraft = [];
+    if (reg.id !== "global" && reg.bounds) {
+      // Regional view: use adsb.lol for denser ADS-B coverage
+      const lat = (reg.bounds[0][0] + reg.bounds[1][0]) / 2;
+      const lon = (reg.bounds[0][1] + reg.bounds[1][1]) / 2;
+      const dist = Math.min(500, Math.max(150, Math.round(Math.abs(reg.bounds[1][0]-reg.bounds[0][0]) * 55)));
+      const url = `https://api.adsb.lol/v2/lat/${lat.toFixed(2)}/lon/${lon.toFixed(2)}/dist/${dist}`;
+      const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+      aircraft = (data.aircraft || []).filter(a => a.lat != null && a.lon != null).slice(0, 400).map(a => ({
+        id:"ac:"+a.hex, layer:"aircraft",
+        title: ((a.flight||a.hex)||"?").trim() + (a.r ? " ("+a.r+")" : ""),
+        ts: now, lat: a.lat, lng: a.lon,
+        alt: a.alt_baro ?? a.alt_geom, vel: a.gs, heading: a.track, icao24: a.hex,
+        url: "https://globe.adsbexchange.com/?icao=" + a.hex,
+      }));
+    } else {
+      // Global view: OpenSky via allorigins proxy
+      const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://opensky-network.org/api/states/all"));
+      const ts = (data.time || now/1000)*1000;
+      aircraft = (data.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 200).map(s => ({
+        id:"ac:"+s[0], layer:"aircraft",
+        title: ((s[1]||s[0])||"  ").trim() + " \u00b7 " + (s[2]||"?"),
+        ts, lat: s[6], lng: s[5], alt: s[7], vel: s[9], heading: s[10], icao24: s[0],
+        url: "https://opensky-network.org/aircraft-profile?icao24="+s[0],
+      }));
+    }
+    // Update rolling trail buffer
+    const alive = new Set(aircraft.map(a => a.icao24));
+    for (const a of aircraft) {
+      if (!state.aircraftTrails[a.icao24]) state.aircraftTrails[a.icao24] = [];
+      const trail = state.aircraftTrails[a.icao24];
+      trail.push({ lat: a.lat, lng: a.lng, ts: now });
+      while (trail.length > 15 || (trail.length > 1 && now - trail[0].ts > 900000)) trail.shift();
+    }
+    for (const id of Object.keys(state.aircraftTrails)) if (!alive.has(id)) delete state.aircraftTrails[id];
+    return aircraft;
   } catch(e) { console.warn("aircraft",e); return []; }
 }
 
@@ -675,16 +811,28 @@ function initMap2D() {
   state.map = L.map("map2d", { zoomControl:true, worldCopyJump:true, preferCanvas:true }).setView([20,10], 2);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "" }).addTo(state.map);
   for (const l of LAYERS) state.layerGroups[l.id] = L.layerGroup().addTo(state.map);
+  state.map.on("moveend zoomend", scheduleDetect);
 }
 
 function markerFor(evt) {
   const layer = LAYERS.find(l => l.id === evt.layer);
   const color = layer?.color || "#fff";
+  const when = new Date(evt.ts).toISOString().replace("T"," ").slice(0,16);
+  // Aircraft: rotated plane icon
+  if (evt.layer === "aircraft") {
+    const deg = evt.heading ?? 0;
+    const icon = L.divIcon({
+      html: `<div style="transform:rotate(${deg}deg);color:${color};font-size:13px;line-height:1;text-shadow:0 0 4px rgba(0,0,0,.9);pointer-events:none">&#x2708;</div>`,
+      className: "", iconSize: [13,13], iconAnchor: [6,6]
+    });
+    const m = L.marker([evt.lat, evt.lng], { icon });
+    m.bindPopup(`<b>${esc(evt.title)}</b><br>Alt: ${evt.alt!=null?Math.round(evt.alt)+" ft":"?"} &middot; ${evt.vel!=null?Math.round(evt.vel)+" kts":""}<br><span style="color:#7a8198">${when} UTC</span>${evt.url?`<br><a href="${evt.url}" target="_blank" rel="noopener">track &rarr;</a>`:""}`);
+    return m;
+  }
   const r = evt.layer === "quakes" ? Math.max(3, Math.min(14, (evt.mag||1)*2.2)) : 5;
   const m = L.circleMarker([evt.lat, evt.lng], {
     radius: r, color, fillColor: color, fillOpacity: 0.6, weight: 1,
   });
-  const when = new Date(evt.ts).toISOString().replace("T"," ").slice(0,16);
   const extra = evt.mag != null ? `<br>M ${evt.mag.toFixed(1)}` : (evt.cat ? `<br>${esc(evt.cat)}` : "");
   m.bindPopup(`<b>${esc(evt.title)}</b>${extra}<br><span style="color:#7a8198">${when} UTC</span>${evt.url?`<br><a href="${evt.url}" target="_blank" rel="noopener">source &rarr;</a>`:""}`);
   return m;
@@ -697,9 +845,19 @@ function renderMapLayers() {
   const cutoff = Date.now() - state.timeHours*3600*1000;
   for (const evt of state.events) {
     if (!state.layers.has(evt.layer)) continue;
-    if (evt.layer === "weather") continue; // handled as tile layer
+    if (evt.layer === "weather") continue;
     if (evt.ts < cutoff && !ALWAYS.has(evt.layer)) continue;
     if (state.layerGroups[evt.layer]) markerFor(evt).addTo(state.layerGroups[evt.layer]);
+  }
+  // Aircraft flight trails
+  if (state.layers.has("aircraft") && state.layerGroups["aircraft"]) {
+    const trailColor = LAYERS.find(l => l.id==="aircraft")?.color || "#b08bff";
+    for (const pts of Object.values(state.aircraftTrails)) {
+      if (pts.length < 2) continue;
+      L.polyline(pts.map(p => [p.lat, p.lng]), {
+        color: trailColor, weight: 1.5, opacity: 0.35, smoothFactor: 1
+      }).addTo(state.layerGroups["aircraft"]);
+    }
   }
   if (state.mode === "3d") renderGlobePoints();
 }
@@ -752,6 +910,56 @@ function setMapMode(m) {
   saveState();
 }
 
+// ---------- REGION FOCUS ----------
+function activeRegion() {
+  return REGIONS.find(r => r.id === state.focusRegion) || REGIONS[0];
+}
+
+function setFocusRegion(id) {
+  if (state.focusRegion === id) return;
+  state.focusRegion = id;
+  saveState();
+  updateFocusUI();
+  renderNews(); renderEvents(); renderWall();
+}
+
+function updateFocusUI() {
+  const r = activeRegion();
+  const badge = $("regionBadge"), btn = $("btnGlobal");
+  const isGlobal = r.id === "global";
+  if (badge) {
+    badge.textContent = isGlobal ? "\uD83C\uDF0D" : r.name;
+    badge.className = "region-badge" + (isGlobal ? " global" : "");
+    badge.title = isGlobal ? "Viewing globally \u2014 zoom in to auto-focus" : "Focused: " + r.name + " \u2014 click \uD83C\uDF0D Global to reset";
+  }
+  if (btn) btn.style.display = isGlobal ? "none" : "";
+}
+
+let _detectTimer = null;
+function scheduleDetect() {
+  clearTimeout(_detectTimer);
+  _detectTimer = setTimeout(detectRegion, 700);
+}
+
+function detectRegion() {
+  if (!state.map) return;
+  const zoom = state.map.getZoom();
+  if (zoom < 4) { setFocusRegion("global"); return; }
+  const c = state.map.getCenter();
+  // Sort once by area (ascending) so most-specific region wins on overlap
+  const ordered = REGIONS.filter(r => r.bounds).slice().sort((a,b) => {
+    const areaA = (a.bounds[1][0]-a.bounds[0][0]) * (a.bounds[1][1]-a.bounds[0][1]);
+    const areaB = (b.bounds[1][0]-b.bounds[0][0]) * (b.bounds[1][1]-b.bounds[0][1]);
+    return areaA - areaB;
+  });
+  for (const r of ordered) {
+    if (L.latLngBounds(r.bounds[0], r.bounds[1]).contains(c)) {
+      setFocusRegion(r.id); return;
+    }
+  }
+  setFocusRegion("global");
+}
+
 // ---------- RENDER: feeds + events panels ----------
 function renderFeedSources() {
   const host = $("feedSources");
@@ -773,10 +981,22 @@ function renderNews() {
   const host = $("feedList");
   const cutoff = Date.now() - state.timeHours*3600*1000;
   const q = state.query.toLowerCase();
-  const items = state.news.filter(n =>
-    state.feeds.has(n.src) && n.ts >= cutoff &&
-    (!q || n.title.toLowerCase().includes(q) || (n.excerpt||"").toLowerCase().includes(q))
-  );
+  const r = activeRegion();
+  const kws = r.keywords.map(k => k.toLowerCase());
+  const items = state.news.filter(n => {
+    if (!state.feeds.has(n.src)) return false;
+    if (n.ts < cutoff) return false;
+    if (q && !n.title.toLowerCase().includes(q) && !(n.excerpt||"").toLowerCase().includes(q)) return false;
+    if (r.id !== "global") {
+      // Region-tagged feeds (defaultOff:true + matching region) bypass keyword check
+      const srcFeed = FEEDS.find(f => f.id === n.src);
+      if (!(srcFeed?.region === r.id)) {
+        const text = (n.title + " " + (n.excerpt||"")).toLowerCase();
+        if (!kws.some(k => text.includes(k))) return false;
+      }
+    }
+    return true;
+  });
   host.innerHTML = "";
   const frag = document.createDocumentFragment();
   for (const n of items.slice(0, 250)) {
@@ -812,9 +1032,14 @@ function renderLayerSources() {
 function renderEvents() {
   const host = $("eventList");
   const cutoff = Date.now() - state.timeHours*3600*1000;
-  const items = state.events.filter(e =>
-    state.layers.has(e.layer) && (e.ts >= cutoff || e.layer === "iss" || e.layer === "aircraft")
-  );
+  const ALWAYS = new Set(["iss","satellites","aircraft","launches"]);
+  const bounds = state.map && state.focusRegion !== "global" ? state.map.getBounds().pad(0.15) : null;
+  const items = state.events.filter(e => {
+    if (!state.layers.has(e.layer)) return false;
+    if (e.ts < cutoff && !ALWAYS.has(e.layer)) return false;
+    if (bounds && e.lat != null && !bounds.contains([e.lat, e.lng])) return false;
+    return true;
+  });
   host.innerHTML = "";
   const frag = document.createDocumentFragment();
   for (const e of items.slice(0, 300)) {
@@ -902,12 +1127,20 @@ function renderWall() {
   for (const c of all) { if (!state.channelOrder.includes(c.id)) state.channelOrder.push(c.id); }
   const ordered = state.channelOrder.map(id => all.find(c => c.id === id)).filter(Boolean);
   const chosen = ordered.filter(c => state.channels.has(c.id));
-  if (chosen.length === 0) {
+  // Regional channel filtering
+  const r = activeRegion();
+  let visible = chosen;
+  if (r.id !== "global" && r.chIds.length > 0) {
+    const rSet = new Set(r.chIds);
+    const regional = chosen.filter(c => rSet.has(c.id));
+    if (regional.length > 0) visible = regional;
+  }
+  if (visible.length === 0) {
     host.innerHTML = `<div style="padding:14px 10px;font-size:11px;color:var(--muted);text-align:center">No channels selected.<br>Open ⚙ Settings to pick channels.</div>`;
     return;
   }
   const frag = document.createDocumentFragment();
-  for (const c of chosen) frag.appendChild(makeTile(c));
+  for (const c of visible) frag.appendChild(makeTile(c));
   host.appendChild(frag);
   host.onclick = (e) => {
     const b = e.target.closest(".close");
@@ -946,11 +1179,16 @@ function renderSettingsPanel() {
 
   // Channels
   const sec1 = document.createElement("div"); sec1.className = "sp-section";
+  const rFocus = activeRegion();
   let chHtml = `<div class="sp-section-title">Live Channels <span style="color:var(--muted);font-weight:400;font-size:10px">(${state.channels.size} active)</span></div>`;
+  if (rFocus.id !== "global") chHtml += `<p style="font-size:10px;color:var(--accent);margin:0 0 6px">\uD83D\uDCCD Focused on ${rFocus.name} \u2014 channels for this region shown first in the Channels panel.</p>`;
   for (const c of allChannels) {
     const on = state.channels.has(c.id);
     const src = c.yt ? `youtube.com/channel/${c.yt}` : (c.hls ? c.hls : (c.url || ""));
-    chHtml += `<div class="sp-row"><div class="info"><div class="name">${esc(c.name)}</div><div class="url">${esc(src)}</div></div>
+    const regionObj = c.region ? REGIONS.find(r => r.id === c.region) : null;
+    const regionTag = regionObj ? `<span style="margin-left:6px;font-size:9px;padding:1px 5px;border-radius:8px;background:#1e2a40;color:var(--muted)">${regionObj.name}</span>` : "";
+    const isFocusCh = rFocus.id !== "global" && rFocus.chIds.includes(c.id);
+    chHtml += `<div class="sp-row"${isFocusCh?" style=\"background:#0d1a2b\"":""}><div class="info"><div class="name">${esc(c.name)}${regionTag}</div><div class="url">${esc(src)}</div></div>
       <div class="sp-toggle"><input type="checkbox" data-chid="${c.id}" ${on ? "checked" : ""}></div></div>`;
   }
   sec1.innerHTML = chHtml;
@@ -971,10 +1209,14 @@ function renderSettingsPanel() {
   // News sources
   const sec2 = document.createElement("div"); sec2.className = "sp-section";
   let feedHtml = `<div class="sp-section-title">News Sources <span style="color:var(--muted);font-weight:400;font-size:10px">(${state.feeds.size}/${FEEDS.length} active)</span></div>`;
+  if (rFocus.id !== "global") feedHtml += `<p style="font-size:10px;color:var(--accent);margin:0 0 6px">\uD83D\uDCCD Articles from any source are keyword-filtered for ${rFocus.name}. Regional feeds (highlighted) also shown unconditionally.</p>`;
   for (const f of FEEDS) {
     const on = state.feeds.has(f.id);
     const err = state.feedErr.has(f.id);
-    feedHtml += `<div class="sp-row"><div class="info"><div class="name">${esc(f.name)}<span style="color:${err?"var(--danger)":"var(--muted)"};font-size:10px;margin-left:6px">${err ? "⚠ error" : f.kind}</span></div><div class="url">${esc(f.url)}</div></div>
+    const fRegionObj = f.region ? REGIONS.find(r => r.id === f.region) : null;
+    const fRegionTag = fRegionObj ? `<span style="margin-left:6px;font-size:9px;padding:1px 5px;border-radius:8px;background:#1e2a40;color:var(--muted)">${fRegionObj.name}</span>` : "";
+    const isFocusFeed = rFocus.id !== "global" && f.region === rFocus.id;
+    feedHtml += `<div class="sp-row"${isFocusFeed?" style=\"background:#0d1a2b\"":""}><div class="info"><div class="name">${esc(f.name)}${fRegionTag}<span style="color:${err?"var(--danger)":"var(--muted)"};font-size:10px;margin-left:6px">${err ? "\u26a0 error" : f.kind}</span></div><div class="url">${esc(f.url)}</div></div>
       <div class="sp-toggle"><input type="checkbox" data-fid="${f.id}" ${on ? "checked" : ""}></div></div>`;
   }
   sec2.innerHTML = feedHtml;
@@ -996,7 +1238,7 @@ function renderSettingsPanel() {
     alerts:     "NOAA weather.gov active alerts — US only",
     iss:        "wheretheiss.at — live ISS position",
     satellites: "satellite.js + tle.ivanstanojevic.me — Tiangong, Hubble, Starlink (SGP4 propagation)",
-    aircraft:   "OpenSky Network via allorigins proxy — live ADS-B states (rate-limited, ~200 aircraft)",
+    aircraft:   "ADS-B Exchange (adsb.lol) in focus mode · OpenSky globally \u2014 plane icon rotates with heading, trails show path history",
     launches:   "Launch Library 2 (thespacedevs.com) — upcoming orbital launches, free 15 req/hr",
     weather:    "RainViewer — global precipitation radar tile overlay, ~10 min behind real-time",
   };
@@ -1181,6 +1423,7 @@ function wireUI() {
     await Promise.all([loadAllFeeds(), loadAllEvents()]);
     toast("Refreshed");
   };
+  $("btnGlobal").onclick = () => { setFocusRegion("global"); if (state.map) state.map.setView([20,10], 2, {animate:true}); };
   $("btnSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
   $("settingsOverlay").onclick = closeSettings;
@@ -1235,6 +1478,7 @@ async function boot() {
   if (!state.pollFeedSecs) state.pollFeedSecs = 300;
   wireUI();
   initPanels();
+  updateFocusUI();
   renderFeedSources();
   renderLayerSources();
   renderWall();
