@@ -32,10 +32,16 @@
     z-index: 0;
     display: block;
   }
+  #grid {
+    position: fixed; inset: 0;
+    z-index: 1;
+    display: block;
+    pointer-events: none;
+  }
 
   .stage {
     position: fixed; inset: 0;
-    z-index: 1;
+    z-index: 2;
     perspective: 1400px;
     perspective-origin: 50% 50%;
     overflow: hidden;
@@ -248,6 +254,7 @@
 <body>
 
 <canvas id="sky"></canvas>
+<canvas id="grid"></canvas>
 
 <header class="top">
   <div class="handle">@<span class="slash">lore</span>macs</div>
@@ -293,6 +300,21 @@
 const PROJECTS_BASE = "projects/";
 const PERSPECTIVE = 1400;
 
+// Concentric shells. Outermost first. Default view (zoom=0) shows only the
+// primary (outer) shell; deeper shells fade in as you scroll in.
+const SHELL_DEFS = [
+  { radius: 520, capacity: 6  },
+  { radius: 380, capacity: 12 },
+  { radius: 240, capacity: 12 },
+  { radius: 110, capacity: 12 },
+];
+const TOTAL_CAPACITY = SHELL_DEFS.reduce((s, d) => s + d.capacity, 0);
+
+// Camera travels from outside the outermost shell through past the innermost
+// as state.zoom moves 0 -> 1. Smooth, no snapping.
+const CAM_Z_FAR  = 700;
+const CAM_Z_NEAR = -500;
+
 const CATALOG = [
   { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: PROJECTS_BASE + "playwright/" },
   { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: PROJECTS_BASE + "emergent-lab/" },
@@ -326,6 +348,35 @@ const CATALOG = [
   { id: "halcyon",      title: "Halcyon",               desc: "A still bright morning." },
 ];
 
+// Auto-generated filler nodes so every shell slot is populated even before
+// the catalog has enough real entries. Keeps the sphere feeling complete.
+const DUMMY_POOL = [
+  ["Cinder",    "A warmth that stays."],
+  ["Quill",     "The shape of writing."],
+  ["Tether",    "What keeps you close."],
+  ["Bramble",   "Snags on purpose."],
+  ["Meridian",  "A line that isn't there."],
+  ["Murmur",    "Words under words."],
+  ["Kelp",      "An underwater forest."],
+  ["Vault",     "The door inward."],
+  ["Plume",     "Rising slowly."],
+  ["Amber",     "Stillness preserved."],
+  ["Siphon",    "The quiet draw."],
+  ["Wreath",    "Braided intent."],
+  ["Cairn",     "A mark for later."],
+  ["Mist",      "Edges go soft."],
+  ["Coven",     "Many hands, one shape."],
+  ["Rift",      "Where something gave."],
+];
+function ensureFullCatalog() {
+  let i = 0;
+  while (CATALOG.length < TOTAL_CAPACITY) {
+    const [title, desc] = DUMMY_POOL[i % DUMMY_POOL.length];
+    CATALOG.push({ id: "stub_" + i, title, desc });
+    i++;
+  }
+}
+
 // =====================================================================
 // PERSISTENCE
 // =====================================================================
@@ -348,86 +399,115 @@ function saveView(v) {
 }
 
 // =====================================================================
-// NODE RANKING
-// rank = baseIndex - clickCount * K  (lower rank number = higher priority)
-// Top-ranked nodes appear at low zoom; low-ranked emerge as you dive in.
+// RANKING
+// Lower score = higher priority = gets placed on the outermost shell.
+// Clicking a node boosts it, so visited nodes drift outward toward focus.
 // =====================================================================
 let clicks = loadClicks();
-function recomputeRanks() {
-  // Start with catalog order, then boost by click count.
-  const withRank = CATALOG.map((n, i) => ({
+function rankedCatalog() {
+  const withScore = CATALOG.map((n, i) => ({
     ...n,
     baseIdx: i,
     score: i - (clicks[n.id] || 0) * 2.0,
   }));
-  withRank.sort((a, b) => a.score - b.score);
-  // Assign rank 0..N-1 based on sorted position.
-  withRank.forEach((n, idx) => { n.rank = idx; });
-  return withRank;
+  withScore.sort((a, b) => a.score - b.score);
+  withScore.forEach((n, idx) => { n.rank = idx; });
+  return withScore;
 }
 
 // =====================================================================
 // FIBONACCI SPHERE POSITIONS
 // Generate unit vectors evenly distributed on a sphere surface.
+// `rot` offsets the longitude so concentric shells don't align.
 // =====================================================================
-function fibonacciSphere(n) {
+function fibonacciSphere(n, rot) {
   const points = [];
   const phi = Math.PI * (3 - Math.sqrt(5));
+  const off = rot || 0;
   for (let i = 0; i < n; i++) {
     const y = 1 - (i / Math.max(1, n - 1)) * 2;
     const r = Math.sqrt(1 - y * y);
-    const theta = phi * i;
+    const theta = phi * i + off;
     points.push({ x: Math.cos(theta) * r, y, z: Math.sin(theta) * r });
   }
   return points;
+}
+
+// Partition the ranked list across shells. Top-ranked land on the outer shell
+// (always visible at the default zoom); lower-ranked land on inner shells that
+// reveal as you dive in.
+function assignShells(ranked) {
+  const shells = [];
+  let cursor = 0;
+  for (let s = 0; s < SHELL_DEFS.length; s++) {
+    const def = SHELL_DEFS[s];
+    const slice = ranked.slice(cursor, cursor + def.capacity);
+    cursor += def.capacity;
+    const positions = fibonacciSphere(def.capacity, s * 0.73);
+    const items = slice.map((n, i) => ({
+      ...n,
+      shellIndex: s,
+      shellRadius: def.radius,
+      unit: positions[i],
+    }));
+    shells.push({ def, items });
+  }
+  return shells;
 }
 
 // =====================================================================
 // STATE
 // =====================================================================
 const state = {
-  nodes: [],           // sorted by rank with { ...catalog, rank, pos:{x,y,z} }
-  zoom: 1.0,           // 0.6 .. 4.0
+  nodes: [],           // flat list across all shells
+  shells: [],          // [{ def, items }]
+  zoom: 0,             // 0 = outside outer shell, 1 = past innermost
+  targetZoom: 0,
   rotX: -0.18,
   rotY: 0.15,
   targetRotX: -0.18,
   targetRotY: 0.15,
-  targetZoom: 1.0,
   dragging: false,
   lastPointer: null,
   velX: 0, velY: 0,
   lastInteract: 0,
 };
 
-const stage  = document.getElementById("stage");
-const sphere = document.getElementById("sphere");
-const sky    = document.getElementById("sky");
-const skyCtx = sky.getContext("2d");
+const stage   = document.getElementById("stage");
+const sphere  = document.getElementById("sphere");
+const sky     = document.getElementById("sky");
+const grid    = document.getElementById("grid");
+const skyCtx  = sky.getContext("2d");
+const gridCtx = grid.getContext("2d");
 
 // =====================================================================
 // BUILD DOM NODES
 // =====================================================================
 function buildNodes() {
   sphere.innerHTML = "";
-  const ranked = recomputeRanks();
-  const positions = fibonacciSphere(ranked.length);
-  state.nodes = ranked.map((n, i) => {
-    const a = document.createElement("a");
-    a.className = "node " + (n.href ? "live" : "placeholder");
-    a.href = n.href || "#";
-    a.dataset.id = n.id;
-    a.innerHTML = `
-      <div class="card">
-        <div class="rank-dot"></div>
-        <div class="thumb">${makeThumb(n)}</div>
-        <div class="title">${escapeHtml(n.title)}</div>
-        <div class="desc">${escapeHtml(n.desc)}</div>
-      </div>
-    `;
-    a.addEventListener("click", (e) => onNodeClick(e, n));
-    sphere.appendChild(a);
-    return { ...n, el: a, pos: positions[i] };
-  });
+  ensureFullCatalog();
+  const ranked = rankedCatalog();
+  state.shells = assignShells(ranked);
+  state.nodes = [];
+  for (const shell of state.shells) {
+    for (const item of shell.items) {
+      const a = document.createElement("a");
+      a.className = "node " + (item.href ? "live" : "placeholder");
+      a.href = item.href || "#";
+      a.dataset.id = item.id;
+      a.innerHTML = `
+        <div class="card">
+          <div class="rank-dot"></div>
+          <div class="thumb">${makeThumb(item)}</div>
+          <div class="title">${escapeHtml(item.title)}</div>
+          <div class="desc">${escapeHtml(item.desc)}</div>
+        </div>
+      `;
+      a.addEventListener("click", (e) => onNodeClick(e, item));
+      sphere.appendChild(a);
+      state.nodes.push({ ...item, el: a });
+    }
+  }
   document.getElementById("totalCount").textContent = state.nodes.length;
 }
 
@@ -511,32 +591,27 @@ function mulberry32(seed) {
 }
 
 // =====================================================================
-// VISIBILITY MODEL
-// At zoom z, we reveal more nodes by rank while keeping the sphere radius fixed.
-// This makes wheel/pinch feel like diving deeper into a tunnel of nodes rather than
-// inflating the cards toward the camera.
+// ZOOM + SHELL REVEAL
+// zoom in [0,1] drives camera depth. Each shell has its own fade-in window
+// so the outer shell stays visible by default and inner shells emerge as the
+// user dives in, without snapping.
 // =====================================================================
-function visibleCountForZoom(z) {
-  const t = (z - 0.6) / (4.0 - 0.6);
-  const clamped = Math.max(0, Math.min(1, t));
-  const eased = clamped * clamped * (3 - 2 * clamped);
-  const min = 5;
-  return Math.max(min, Math.min(state.nodes.length, Math.round(min + eased * (state.nodes.length - min))));
+function smoothstep(a, b, x) {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 }
-function radiusForZoom(z) {
-  return Math.min(innerWidth, innerHeight) * 0.3;
+function camZForZoom(z) {
+  const t = Math.max(0, Math.min(1, z));
+  const eased = t * t * (3 - 2 * t);
+  return CAM_Z_FAR + (CAM_Z_NEAR - CAM_Z_FAR) * eased;
 }
-
-function revealAlpha(rank, visN) {
-  if (rank < visN - 1) return 1;
-  const edge = visN - 1;
-  const fade = 1 - Math.max(0, rank - edge);
-  return Math.max(0, Math.min(1, fade));
-}
-
-function compensatePerspectiveScale(wz) {
-  const scale = (PERSPECTIVE - wz) / PERSPECTIVE;
-  return Math.max(0.72, Math.min(1.35, scale));
+// Per-shell visibility gate. Outer shell always visible; inner shells fade
+// in as you zoom past their thresholds.
+function shellGate(shellIdx, z) {
+  if (shellIdx === 0) return 1;
+  const start = 0.08 + (shellIdx - 1) * 0.22;
+  const end   = start + 0.22;
+  return smoothstep(start, end, z);
 }
 
 // =====================================================================
@@ -546,48 +621,33 @@ function compensatePerspectiveScale(wz) {
 // disabled so clicks fall through to nothing (they still visually fade).
 // =====================================================================
 function renderFrame() {
-  // Smooth easing toward targets
   state.rotX += (state.targetRotX - state.rotX) * 0.12;
   state.rotY += (state.targetRotY - state.rotY) * 0.12;
-  state.zoom += (state.targetZoom - state.zoom) * 0.12;
+  state.zoom += (state.targetZoom - state.zoom) * 0.10;
 
-  // Free-rotate inertia when not dragging
   if (!state.dragging) {
     state.targetRotY += state.velY * 0.016;
     state.targetRotX += state.velX * 0.016;
     state.velX *= 0.94;
     state.velY *= 0.94;
-    // Gentle auto-rotate if user hasn't interacted for a while
     const idle = Date.now() - state.lastInteract;
-    if (idle > 2500) {
-      state.targetRotY += 0.0015;
-    }
+    if (idle > 2500) state.targetRotY += 0.0015;
   }
 
-  // Clamp rotX so poles don't flip wildly
   if (state.targetRotX > 1.2) state.targetRotX = 1.2;
   if (state.targetRotX < -1.2) state.targetRotX = -1.2;
 
   const sinX = Math.sin(state.rotX), cosX = Math.cos(state.rotX);
   const sinY = Math.sin(state.rotY), cosY = Math.cos(state.rotY);
-  const R = radiusForZoom(state.zoom);
-  const visN = visibleCountForZoom(state.zoom);
-  const depthShift = (state.zoom - 0.6) / (4.0 - 0.6);
+  const camZ = camZForZoom(state.zoom);
   let actuallyVisible = 0;
 
-  // The sphere container lives at (0,0,0); per-node transform carries position.
   for (let i = 0; i < state.nodes.length; i++) {
     const n = state.nodes[i];
-    const showByRank = n.rank < visN;
-    if (!showByRank) {
-      if (n.el.style.opacity !== "0") {
-        n.el.style.opacity = "0";
-        n.el.style.pointerEvents = "none";
-      }
-      continue;
-    }
-    const p = n.pos;
-    // rotateX then rotateY (matches CSS order but we do it in JS for fade logic)
+    const p = n.unit;
+    const R = n.shellRadius;
+
+    // Rotate unit position.
     const y1 = p.y * cosX - p.z * sinX;
     const z1 = p.y * sinX + p.z * cosX;
     const x2 = p.x * cosY + z1 * sinY;
@@ -595,25 +655,131 @@ function renderFrame() {
 
     const wx = x2 * R;
     const wy = y1 * R;
-    const wz = z2 * R - depthShift * R * 0.45;
+    const wz = z2 * R - camZ;
 
-    // Opacity fades back side. z > 0 is toward viewer (CSS convention).
-    const frontness = (z2 + 1) / 2; // 0..1
-    const reveal = revealAlpha(n.rank, visN);
-    const op = Math.max(0.16, Math.min(1, (0.28 + frontness * 0.9) * reveal));
-    const scale = compensatePerspectiveScale(wz);
+    // Hide when close to / past the camera plane or receded too far.
+    let op = 1;
+    if (wz > 900)       op = Math.max(0, 1 - (wz - 900) / 350);
+    else if (wz < -1700) op = Math.max(0, 1 - (-wz - 1700) / 500);
+
+    // Back-side fade so peripheral nodes don't overpower the front focus.
+    const frontness = (z2 + 1) / 2;
+    op *= 0.35 + frontness * 0.65;
+
+    // Gate inner shells by zoom so the default view is 6 primary nodes.
+    op *= shellGate(n.shellIndex, state.zoom);
+
+    if (op < 0.02) {
+      if (n.el.style.opacity !== "0") {
+        n.el.style.opacity = "0";
+        n.el.style.pointerEvents = "none";
+      }
+      continue;
+    }
+
     n.el.style.opacity = op.toFixed(3);
-    n.el.style.pointerEvents = frontness > 0.25 && reveal > 0.45 ? "auto" : "none";
+    n.el.style.pointerEvents = op > 0.45 ? "auto" : "none";
     n.el.style.zIndex = String(1000 + Math.round(wz));
-    n.el.style.transform = `translate3d(${wx}px, ${wy}px, ${wz}px) translate(-50%, -50%) scale(${scale})`;
+    n.el.style.transform = `translate3d(${wx}px, ${wy}px, ${wz}px) translate(-50%, -50%)`;
     actuallyVisible++;
   }
 
   document.getElementById("visCount").textContent = actuallyVisible;
   document.getElementById("zoomChip").textContent = state.zoom.toFixed(2);
 
+  drawGrid(camZ, sinX, cosX, sinY, cosY);
   drawSky();
   requestAnimationFrame(renderFrame);
+}
+
+// =====================================================================
+// WIREFRAME GRID
+// Subtle lat/long lines per shell so the 3D sphere shape is readable
+// without overpowering the nodes. Uses the same rotation + camera math so
+// it aligns with the node field exactly.
+// =====================================================================
+function projectPoint(x, y, z, camZ, sinX, cosX, sinY, cosY, cx, cy) {
+  const y1 = y * cosX - z * sinX;
+  const z1 = y * sinX + z * cosX;
+  const x2 = x * cosY + z1 * sinY;
+  const z2 = -x * sinY + z1 * cosY;
+  const wz = z2 - camZ;
+  if (wz >= PERSPECTIVE - 20) return null;
+  const scale = PERSPECTIVE / (PERSPECTIVE - wz);
+  return { x: cx + x2 * scale, y: cy + y1 * scale, wz };
+}
+
+function drawGrid(camZ, sinX, cosX, sinY, cosY) {
+  const W = grid.width, H = grid.height;
+  gridCtx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2;
+
+  for (let si = 0; si < state.shells.length; si++) {
+    const shell = state.shells[si];
+    const R = shell.def.radius;
+    const gate = shellGate(si, state.zoom);
+    if (gate < 0.05) continue;
+
+    // Fade slightly once the camera has moved past the shell's back face.
+    let passed = 1;
+    if (camZ < -R) passed = Math.max(0, 1 - (-camZ - R) / 400);
+    const alpha = 0.10 * gate * passed;
+    if (alpha < 0.005) continue;
+    gridCtx.strokeStyle = "rgba(140, 200, 255, " + alpha.toFixed(3) + ")";
+    gridCtx.lineWidth = 1;
+
+    // Latitudes
+    const LAT_DIV = 6;
+    const LON_STEPS = 48;
+    for (let li = 1; li < LAT_DIV; li++) {
+      const lat = -Math.PI / 2 + (li / LAT_DIV) * Math.PI;
+      const y0 = Math.sin(lat);
+      const r0 = Math.cos(lat);
+      gridCtx.beginPath();
+      let prev = null;
+      for (let s = 0; s <= LON_STEPS; s++) {
+        const lon = (s / LON_STEPS) * Math.PI * 2;
+        const pt = projectPoint(
+          Math.cos(lon) * r0 * R, y0 * R, Math.sin(lon) * r0 * R,
+          camZ, sinX, cosX, sinY, cosY, cx, cy
+        );
+        if (pt) {
+          if (prev) gridCtx.lineTo(pt.x, pt.y);
+          else gridCtx.moveTo(pt.x, pt.y);
+          prev = pt;
+        } else {
+          prev = null;
+        }
+      }
+      gridCtx.stroke();
+    }
+
+    // Longitudes
+    const LON_DIV = 8;
+    const LAT_STEPS = 36;
+    for (let li = 0; li < LON_DIV; li++) {
+      const lon = (li / LON_DIV) * Math.PI * 2;
+      gridCtx.beginPath();
+      let prev = null;
+      for (let s = 0; s <= LAT_STEPS; s++) {
+        const lat = -Math.PI / 2 + (s / LAT_STEPS) * Math.PI;
+        const y0 = Math.sin(lat);
+        const r0 = Math.cos(lat);
+        const pt = projectPoint(
+          Math.cos(lon) * r0 * R, y0 * R, Math.sin(lon) * r0 * R,
+          camZ, sinX, cosX, sinY, cosY, cx, cy
+        );
+        if (pt) {
+          if (prev) gridCtx.lineTo(pt.x, pt.y);
+          else gridCtx.moveTo(pt.x, pt.y);
+          prev = pt;
+        } else {
+          prev = null;
+        }
+      }
+      gridCtx.stroke();
+    }
+  }
 }
 
 // =====================================================================
@@ -625,6 +791,8 @@ let nebulae = [];
 function initSky() {
   sky.width = innerWidth;
   sky.height = innerHeight;
+  grid.width = innerWidth;
+  grid.height = innerHeight;
   const n = Math.min(500, Math.floor((innerWidth * innerHeight) / 2400));
   stars = [];
   const rng = mulberry32(77);
@@ -738,11 +906,10 @@ stage.addEventListener("pointercancel", onPointerUp);
 
 stage.addEventListener("wheel", (e) => {
   e.preventDefault();
-  const delta = e.deltaY;
-  const factor = Math.exp(-delta * 0.0012);
-  state.targetZoom *= factor;
-  if (state.targetZoom < 0.6) state.targetZoom = 0.6;
-  if (state.targetZoom > 4.0) state.targetZoom = 4.0;
+  // Zoom in (wheel down) increases state.zoom toward 1 and dives deeper.
+  state.targetZoom += e.deltaY * 0.0008;
+  if (state.targetZoom < 0) state.targetZoom = 0;
+  if (state.targetZoom > 1) state.targetZoom = 1;
   state.lastInteract = Date.now();
 }, { passive: false });
 
@@ -763,10 +930,11 @@ stage.addEventListener("touchmove", (e) => {
       e.touches[0].clientX - e.touches[1].clientX,
       e.touches[0].clientY - e.touches[1].clientY
     );
-    const ratio = d / pinchStart.dist;
-    let z = pinchStart.zoom * ratio;
-    if (z < 0.6) z = 0.6;
-    if (z > 4.0) z = 4.0;
+    // Pinch in (fingers come together) dives deeper.
+    const delta = (pinchStart.dist - d) / 400;
+    let z = pinchStart.zoom + delta;
+    if (z < 0) z = 0;
+    if (z > 1) z = 1;
     state.targetZoom = z;
     state.lastInteract = Date.now();
   }
@@ -775,6 +943,7 @@ stage.addEventListener("touchend", () => { pinchStart = null; }, { passive: true
 
 window.addEventListener("resize", () => {
   sky.width = innerWidth; sky.height = innerHeight;
+  grid.width = innerWidth; grid.height = innerHeight;
 });
 
 // =====================================================================
@@ -803,17 +972,8 @@ function onNodeClick(e, n) {
 function bumpClick(id) {
   clicks[id] = (clicks[id] || 0) + 1;
   saveClicks(clicks);
-  // Rebuild ranks but keep positions? We rebuild positions too since fewer
-  // live nodes means better fibonacci distribution; this can shift layout.
-  // To keep the view stable we only rebuild ranks & reassign .rank without
-  // re-picking fibonacci positions when the total count is the same.
-  const ranked = recomputeRanks();
-  // Map id -> new rank
-  const rankById = {};
-  ranked.forEach((r, idx) => { rankById[r.id] = idx; });
-  for (const node of state.nodes) {
-    node.rank = rankById[node.id];
-  }
+  // Rebuild so the clicked node can migrate outward toward the focus shell.
+  buildNodes();
 }
 
 function showToast(text) {
@@ -855,10 +1015,7 @@ document.getElementById("linkReset").addEventListener("click", (e) => {
   e.preventDefault();
   clicks = {};
   saveClicks(clicks);
-  const ranked = recomputeRanks();
-  const rankById = {};
-  ranked.forEach((r, idx) => { rankById[r.id] = idx; });
-  for (const node of state.nodes) node.rank = rankById[node.id];
+  buildNodes();
   showToast("click ranking reset.");
 });
 
@@ -881,7 +1038,8 @@ document.getElementById("hintClose").addEventListener("click", () => {
 function restoreView() {
   const v = loadView();
   if (!v) return;
-  state.zoom = v.zoom; state.targetZoom = v.zoom;
+  const z = Math.max(0, Math.min(1, v.zoom));
+  state.zoom = z; state.targetZoom = z;
   state.rotX = v.rotX; state.targetRotX = v.rotX;
   state.rotY = v.rotY; state.targetRotY = v.rotY;
 }
