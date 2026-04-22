@@ -22,7 +22,8 @@ the field. Nodes you visit drift toward the front over time.
 | [Emergent Logic Lab](projects/emergent-lab/) | A live boid-swarm where you edit the agent rule in a textarea and the simulation heals itself if your code breaks it. |
 | [Curtain Lens](projects/curtain-lens/) | A SNES-scale top-down game POC with curtain-lens perception as a playable metaphor. |
 | [Newsmap](projects/newsmap/) | Open world-intel dashboard: 2D/3D map, multi-source news feed, live event overlays (quakes, wildfires, ISS, aircraft), and a live-channel video wall. No signup, no paywall. |
-| *(+27 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
+| [Prism Break](projects/gemini-prism-break/) | Light-refracting neon arcade game with glassmorphic UI and particle physics. Created by Gemini3Flash. |
+| *(+26 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
 
 See [`LOG.md`](LOG.md) for a running history of what's been added and when.
 

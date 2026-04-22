@@ -340,7 +340,7 @@ const CATALOG = [
   { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: PROJECTS_BASE + "emergent-lab/" },
   { id: "curtain-lens", title: "Curtain Lens",          desc: "SNES-scale top-down POC with curtain-lens perception.", href: PROJECTS_BASE + "curtain-lens/" },
   { id: "newsmap",      title: "Newsmap",               desc: "Open world-intel: map + live news + events + channels.", href: PROJECTS_BASE + "newsmap/" },
-  { id: "prism",        title: "Prism Field",           desc: "Signals get sorted." },
+  { id: "prism-break", title: "Gemini3Flash: Prism Break", desc: "Shatter the spectrum in this neon arcade experience.", href: PROJECTS_BASE + "gemini-prism-break/" },
   { id: "loom",         title: "Loom",                  desc: "Threads find their weave." },
   { id: "fathom",       title: "Fathom",                desc: "Depth as calibration." },
   { id: "glyph",        title: "Glyph Forge",           desc: "Symbols want to mean." },
@@ -609,6 +609,24 @@ function makeThumb(n) {
       <circle cx="93" cy="68" r="1.2" fill="#ff5c7a"/>
     </svg>`;
   }
+  if (n.id === "prism-break") {
+    return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+      <rect width="160" height="90" fill="#050b16"/>
+      <rect x="25" y="15" width="20" height="10" rx="2" fill="#ff0055" opacity="0.8"/>
+      <rect x="50" y="15" width="20" height="10" rx="2" fill="#ff9900" opacity="0.8"/>
+      <rect x="75" y="15" width="20" height="10" rx="2" fill="#ffee00" opacity="0.8"/>
+      <rect x="100" y="15" width="20" height="10" rx="2" fill="#00ff66" opacity="0.8"/>
+      
+      <rect x="35" y="28" width="20" height="10" rx="2" fill="#ff9900" opacity="0.8"/>
+      <rect x="60" y="28" width="20" height="10" rx="2" fill="#ffee00" opacity="0.8"/>
+      <rect x="85" y="28" width="20" height="10" rx="2" fill="#00ff66" opacity="0.8"/>
+      <rect x="110" y="28" width="20" height="10" rx="2" fill="#0099ff" opacity="0.8"/>
+
+      <rect x="55" y="75" width="50" height="4" rx="2" fill="#00f2ff"/>
+      <circle cx="80" cy="60" r="4" fill="#fff"/>
+    </svg>`;
+  }
+
   // Generic procedural glyph for placeholders
   const seed = hash(n.id);
   const hue = seed % 360;

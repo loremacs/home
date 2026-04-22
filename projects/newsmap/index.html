@@ -143,6 +143,40 @@
     .panel#panel-events, .panel#panel-channels { display: none; }
     #hdr input#q { width: 110px; }
   }
+  /* Data status bar */
+  #dataBar { padding: 3px 8px; background: #040812; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 2px 5px; font-size: 10px; flex-shrink: 0; min-height: 22px; align-items: center; }
+  .ds-pill { display:inline-flex; align-items:center; gap:3px; padding:1px 6px; border-radius:8px; white-space:nowrap; cursor:default; }
+  .ds-pill .dot { width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
+  .ds-pill.ok    { color:#7ef2a1; }
+  .ds-pill.load  { color:#ffd580; }
+  .ds-pill.load .dot { animation: blink 0.9s ease-in-out infinite; }
+  .ds-pill.error { color:#ff5c7a; }
+  .ds-pill.idle  { color:var(--muted); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  /* Log modal */
+  #logModal { position:fixed; inset:0; z-index:2000; background:rgba(2,5,18,0.92); display:none; flex-direction:column; }
+  #logModal.open { display:flex; }
+  #logBox { background:#080d1e; margin:32px; border:1px solid var(--border); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; max-height:calc(100vh - 64px); }
+  #logHead { padding:8px 12px; border-bottom:1px solid var(--border); display:flex; gap:6px; align-items:center; flex-shrink:0; background:#060b1a; }
+  #logHead .title { font-weight:700; font-size:12px; flex:1; color:var(--ink); }
+  .lvl-btn { padding:2px 8px; border-radius:10px; border:1px solid var(--border); background:none; color:var(--muted); font-size:10px; cursor:pointer; }
+  .lvl-btn.active { border-color:var(--accent); color:var(--accent); background:#1e3a5a; }
+  .lvl-btn.warn-btn { border-color:#ffd580; color:#ffd580; }
+  .lvl-btn.warn-btn.active { background:rgba(255,213,128,0.1); }
+  .lvl-btn.err-btn { border-color:#ff5c7a; color:#ff5c7a; }
+  .lvl-btn.err-btn.active { background:rgba(255,92,122,0.1); }
+  #logTable { flex:1; overflow-y:auto; font-size:10.5px; font-family:monospace; }
+  .log-row { display:grid; grid-template-columns:65px 44px 80px 1fr; padding:3px 10px; border-bottom:1px solid rgba(255,255,255,0.03); gap:6px; align-items:baseline; }
+  .log-row:hover { background:#0c1326; }
+  .log-time { color:#4a5270; }
+  .lvl-info  { color:#7ef2a1; }
+  .lvl-warn  { color:#ffd580; }
+  .lvl-error { color:#ff5c7a; }
+  .lvl-debug { color:#4a5270; }
+  .log-cat { color:var(--accent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .log-msg { color:var(--ink); word-break:break-word; }
+  #logEmpty { padding:40px; text-align:center; color:var(--muted); font-size:12px; }
+  #logErrBadge { position:absolute; top:1px; right:1px; width:6px; height:6px; border-radius:50%; background:#ff5c7a; pointer-events:none; display:none; }
 </style>
 </head>
 <body>
@@ -160,6 +194,7 @@
     <div class="spacer"></div>
     <span class="status" id="status">booting...</span>
     <button id="btnRefresh" class="icon-btn" title="Refresh all">&#x21bb;</button>
+    <button id="btnLog" class="icon-btn" title="Activity log" style="position:relative">&#x1F4CB;<span id="logErrBadge"></span></button>
     <button id="btnSettings" class="icon-btn" title="Settings">&#9881;</button>
   </header>
 
@@ -188,6 +223,7 @@
         <button id="btnGlobal" class="pwin" style="display:none;font-size:11px" title="Reset to global view">&#x1F30D; Global</button>
         <button class="pwin pmin" data-panel="panel-map" title="Minimise">&#x2212;</button>
       </div>
+      <div id="dataBar"></div>
       <div class="panel-body" style="position:relative;overflow:hidden">
         <div id="map2d" style="position:absolute;inset:0"></div>
         <div id="map3d" style="position:absolute;inset:0;display:none;background:radial-gradient(ellipse at center,#0a1430 0%,#000 70%)"></div>
@@ -232,7 +268,23 @@
 
   </div><!-- #workspace -->
 
-  <!-- Settings panel -->
+  <!-- Log modal -->
+  <div id="logModal">
+    <div id="logBox">
+      <div id="logHead">
+        <span class="title">&#x1F4CB; Activity Log</span>
+        <button class="lvl-btn active" data-lvl="all">All</button>
+        <button class="lvl-btn" data-lvl="info">INFO</button>
+        <button class="lvl-btn warn-btn" data-lvl="warn">WARN</button>
+        <button class="lvl-btn err-btn" data-lvl="error">ERROR</button>
+        <button class="lvl-btn" data-lvl="debug">DEBUG</button>
+        <button id="logClear" style="margin-left:auto;font-size:11px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);padding:2px 8px;cursor:pointer">Clear</button>
+        <button id="logClose" style="margin-left:8px;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;padding:0 4px">&times;</button>
+      </div>
+      <div id="logTable"></div>
+    </div>
+  </div>
+
   <div class="settings-overlay" id="settingsOverlay"></div>
   <div class="settings-panel" id="settingsPanel">
     <div class="sp-hdr">
@@ -406,7 +458,7 @@ const LAYERS = [
   { id:"alerts",     name:"US alerts",      color:"#5dd6ff", on:false },
   { id:"iss",        name:"ISS",            color:"#7ef2a1", on:true  },
   { id:"satellites", name:"Satellites",     color:"#a0ffcc", on:false },
-  { id:"aircraft",   name:"Aircraft",       color:"#b08bff", on:false },
+  { id:"aircraft",   name:"Aircraft",       color:"#b08bff", on:true  },
   { id:"launches",   name:"Space launches", color:"#ff9f2e", on:true  },
   { id:"weather",    name:"Weather radar",  color:"#80e0ff", on:false },
 ];
@@ -605,78 +657,131 @@ async function fetchFeed(feed) {
   cacheSet("feed:"+feed.id, items);
   return items;
 }
+// ---------- LOG / STATUS SYSTEM ----------
+const LOG_ENTRIES = [];
+let _logFilter = "all";
+const SRCSTATUS = {};
+
+function addLog(level, cat, msg, detail) {
+  LOG_ENTRIES.push({ ts: Date.now(), level, cat, msg, detail: detail || "" });
+  if (LOG_ENTRIES.length > 2000) LOG_ENTRIES.shift();
+  const errCount = LOG_ENTRIES.filter(e => e.level === "error").length;
+  const badge = $("logErrBadge"); if (badge) badge.style.display = errCount ? "" : "none";
+  if ($("logModal")?.classList.contains("open")) renderLogEntries();
+}
+
+function setSrcStatus(id, status, label, msg, count) {
+  SRCSTATUS[id] = { status, label: label||id, msg: msg||"", count: count??null, ts: Date.now() };
+  renderDataBar();
+  const logMsg = status === "ok" ? `${label||id}: ${count!=null?count+" items":"ok"}` : (msg||status);
+  addLog(status === "error" ? "error" : status === "load" ? "debug" : "info", id, logMsg);
+}
+
+function renderDataBar() {
+  const bar = $("dataBar"); if (!bar) return;
+  const entries = Object.entries(SRCSTATUS);
+  if (!entries.length) { bar.innerHTML = `<span style="color:var(--muted)">no sources active</span>`; return; }
+  bar.innerHTML = entries.map(([, s]) => {
+    const count = s.count != null ? " " + s.count : "";
+    const tip = s.msg ? ` title="${esc(s.msg)}"` : "";
+    return `<span class="ds-pill ${s.status}"${tip}><span class="dot"></span>${esc(s.label)}${count}</span>`;
+  }).join("");
+}
+
+function openLog() { $("logModal").classList.add("open"); renderLogEntries(); }
+function closeLog() { $("logModal").classList.remove("open"); }
+
+function renderLogEntries() {
+  const table = $("logTable"); if (!table) return;
+  const rows = LOG_ENTRIES.slice().reverse().filter(e => _logFilter === "all" || e.level === _logFilter);
+  if (!rows.length) {
+    table.innerHTML = `<div id="logEmpty">No ${_logFilter === "all" ? "" : _logFilter + " "}entries yet.</div>`;
+    return;
+  }
+  table.innerHTML = rows.map(e => {
+    const t = new Date(e.ts).toISOString().slice(11,19);
+    const detail = e.detail ? `<br><span style="color:#4a5270;font-size:9.5px">${esc(String(e.detail).slice(0,300))}</span>` : "";
+    return `<div class="log-row"><span class="log-time">${t}</span><span class="lvl-${e.level}">${e.level.toUpperCase()}</span><span class="log-cat">${esc(e.cat)}</span><span class="log-msg">${esc(e.msg)}${detail}</span></div>`;
+  }).join("");
+}
+
 async function loadAllFeeds() {
   setStatus("loading feeds...");
-  const results = await Promise.allSettled(FEEDS.map(async f => {
-    try { const items = await fetchFeed(f); state.feedErr.delete(f.id); return items; }
-    catch(e) { console.warn("feed", f.id, e); state.feedErr.add(f.id); return []; }
+  setSrcStatus("feeds", "load", "Feeds", "fetching...");
+  const active = FEEDS.filter(f => state.feeds.has(f.id));
+  const results = await Promise.allSettled(active.map(async f => {
+    setSrcStatus("feed:"+f.id, "load", f.name, "");
+    try {
+      const items = await fetchFeed(f);
+      state.feedErr.delete(f.id);
+      setSrcStatus("feed:"+f.id, "ok", f.name, "", items.length);
+      return items;
+    } catch(e) {
+      addLog("error", f.id, e.message||String(e));
+      state.feedErr.add(f.id);
+      setSrcStatus("feed:"+f.id, "error", f.name, e.message||String(e));
+      return [];
+    }
   }));
+  // clear status for feeds no longer active
+  for (const k of Object.keys(SRCSTATUS)) { if (k.startsWith("feed:") && !active.find(f => "feed:"+f.id === k)) delete SRCSTATUS[k]; }
   state.news = results.flatMap(r => r.status === "fulfilled" ? r.value : []);
   state.news.sort((a,b) => b.ts - a.ts);
   renderFeedSources(); renderNews();
+  setSrcStatus("feeds", "ok", "Feeds", "", state.news.length);
   setStatus("feeds: " + state.news.length + " items");
 }
 
 // ---------- EVENT FETCHERS ----------
 async function loadQuakes() {
-  try {
-    const r = await fetchJSON("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson");
-    return (r.features || []).map(f => ({
-      id:"q:"+f.id, layer:"quakes", title: f.properties.title || "Quake",
-      ts: f.properties.time, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0],
-      mag: f.properties.mag, url: f.properties.url,
-    }));
-  } catch(e) { console.warn("quakes",e); return []; }
+  const r = await fetchJSON("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson");
+  return (r.features || []).map(f => ({
+    id:"q:"+f.id, layer:"quakes", title: f.properties.title || "Quake",
+    ts: f.properties.time, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0],
+    mag: f.properties.mag, url: f.properties.url,
+  }));
 }
 async function loadEONET() {
-  try {
-    const r = await fetchJSON("https://eonet.gsfc.nasa.gov/api/v3/events?days=7&status=open");
-    const out = [];
-    for (const e of (r.events || [])) {
-      const g = e.geometry?.[e.geometry.length-1];
-      if (!g || !Array.isArray(g.coordinates)) continue;
-      const [lng, lat] = g.coordinates;
-      if (typeof lat !== "number" || typeof lng !== "number") continue;
-      out.push({
-        id:"e:"+e.id, layer:"eonet", title: e.title,
-        ts: Date.parse(g.date || e.geometry[0].date),
-        lat, lng, cat: e.categories?.[0]?.title || "Event",
-        url: e.sources?.[0]?.url || e.link,
-      });
-    }
-    return out;
-  } catch(e) { console.warn("eonet",e); return []; }
+  const r = await fetchJSON("https://eonet.gsfc.nasa.gov/api/v3/events?days=7&status=open");
+  const out = [];
+  for (const e of (r.events || [])) {
+    const g = e.geometry?.[e.geometry.length-1];
+    if (!g || !Array.isArray(g.coordinates)) continue;
+    const [lng, lat] = g.coordinates;
+    if (typeof lat !== "number" || typeof lng !== "number") continue;
+    out.push({
+      id:"e:"+e.id, layer:"eonet", title: e.title,
+      ts: Date.parse(g.date || e.geometry[0].date),
+      lat, lng, cat: e.categories?.[0]?.title || "Event",
+      url: e.sources?.[0]?.url || e.link,
+    });
+  }
+  return out;
 }
 async function loadAlerts() {
-  try {
-    const r = await fetchJSON("https://api.weather.gov/alerts/active?status=actual&message_type=alert");
-    return (r.features || []).slice(0, 200).map(f => {
-      const g = f.geometry;
-      let lat, lng;
-      if (g && g.type === "Point") { [lng, lat] = g.coordinates; }
-      else if (g && g.type === "Polygon") {
-        const c = g.coordinates[0];
-        lat = c.reduce((s,p)=>s+p[1],0)/c.length;
-        lng = c.reduce((s,p)=>s+p[0],0)/c.length;
-      } else return null;
-      return {
-        id:"a:"+f.id, layer:"alerts",
-        title: f.properties.event + " - " + (f.properties.areaDesc||"").slice(0,60),
-        ts: Date.parse(f.properties.sent), lat, lng,
-        sev: f.properties.severity, url: f.properties.uri || null,
-      };
-    }).filter(Boolean);
-  } catch(e) { console.warn("alerts",e); return []; }
+  const r = await fetchJSON("https://api.weather.gov/alerts/active?status=actual&message_type=alert");
+  return (r.features || []).slice(0, 200).map(f => {
+    const g = f.geometry;
+    let lat, lng;
+    if (g && g.type === "Point") { [lng, lat] = g.coordinates; }
+    else if (g && g.type === "Polygon") {
+      const c = g.coordinates[0];
+      lat = c.reduce((s,p)=>s+p[1],0)/c.length;
+      lng = c.reduce((s,p)=>s+p[0],0)/c.length;
+    } else return null;
+    return {
+      id:"a:"+f.id, layer:"alerts",
+      title: f.properties.event + " - " + (f.properties.areaDesc||"").slice(0,60),
+      ts: Date.parse(f.properties.sent), lat, lng,
+      sev: f.properties.severity, url: f.properties.uri || null,
+    };
+  }).filter(Boolean);
 }
 async function loadISS() {
-  try {
-    const r = await fetchJSON("https://api.wheretheiss.at/v1/satellites/25544");
-    return [{
-      id:"iss:now", layer:"iss", title:"ISS position",
-      ts: r.timestamp*1000, lat: r.latitude, lng: r.longitude,
-      url:"https://spotthestation.nasa.gov/",
-    }];
-  } catch(e) { console.warn("iss",e); return []; }
+  const r = await fetchJSON("https://api.wheretheiss.at/v1/satellites/25544");
+  return [{ id:"iss:now", layer:"iss", title:"ISS position",
+    ts: r.timestamp*1000, lat: r.latitude, lng: r.longitude,
+    url:"https://spotthestation.nasa.gov/" }];
 }
 async function loadAircraft() {
   const reg = activeRegion();
@@ -718,7 +823,9 @@ async function loadAircraft() {
     }
     for (const id of Object.keys(state.aircraftTrails)) if (!alive.has(id)) delete state.aircraftTrails[id];
     return aircraft;
-  } catch(e) { console.warn("aircraft",e); return []; }
+  }
+  // caller (track wrapper in loadAllEvents) will catch and log
+  throw new Error("aircraft load failed");
 }
 
 // ---------- NEW EVENT SOURCES ----------
@@ -727,19 +834,22 @@ async function loadRainviewer() {
   if (!state.map) return;
   if (!state.layers.has("weather")) {
     if (_rainviewerLayer) { state.map.removeLayer(_rainviewerLayer); _rainviewerLayer = null; }
+    delete SRCSTATUS["weather"]; renderDataBar();
     return;
   }
+  setSrcStatus("weather", "load", "Weather", "");
   try {
     const data = await fetchJSON("https://api.rainviewer.com/public/weather-maps.json");
     const frames = data.radar?.past;
-    if (!frames || !frames.length) return;
+    if (!frames || !frames.length) { setSrcStatus("weather", "idle", "Weather", "no frames"); return; }
     const path = frames[frames.length - 1].path;
     if (_rainviewerLayer) state.map.removeLayer(_rainviewerLayer);
     _rainviewerLayer = L.tileLayer(
       `https://tilecache.rainviewer.com${path}/512/{z}/{x}/{y}/4/1_1.png`,
       { opacity: 0.55, tileSize: 512, zoomOffset: -1, attribution: "RainViewer" }
     ).addTo(state.map);
-  } catch(e) { console.warn("rainviewer", e); }
+    setSrcStatus("weather", "ok", "Weather", "", frames.length + " frames");
+  } catch(e) { setSrcStatus("weather", "error", "Weather", e.message||String(e)); }
 }
 
 async function loadLaunches() {
@@ -755,7 +865,6 @@ async function loadLaunches() {
       rocket: l.rocket?.configuration?.name || "",
       location: l.pad.location?.name || "",
     }));
-  } catch(e) { console.warn("launches", e); return []; }
 }
 
 // Extra satellite tracking via satellite.js + tle.ivanstanojevic.me (free, no key)
@@ -765,7 +874,7 @@ const TRACKED_SATS = [
   { id: 43226, name: "Starlink-1" },
 ];
 async function loadSatellites() {
-  if (typeof satellite === "undefined") return [];
+  if (typeof satellite === "undefined") throw new Error("satellite.js not loaded");
   const out = [];
   await Promise.allSettled(TRACKED_SATS.map(async sat => {
     try {
@@ -784,7 +893,7 @@ async function loadSatellites() {
         lng: satellite.degreesLong(geo.longitude),
         url: `https://celestrak.org/SATCAT/record.php?CATNR=${sat.id}`,
       });
-    } catch(e) { console.warn("sat", sat.id, e); }
+    } catch(e) { addLog("warn", "sat:"+sat.id, e.message||String(e)); }
   }));
   return out;
 }
