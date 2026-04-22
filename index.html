@@ -618,12 +618,21 @@ function shellRenderRadius(distance) {
   return focusRadiusPx() * Math.pow(SHELL_SCALE_STEP, distance);
 }
 // Opacity peaks at distance 0 (focus) and drops off quickly so neighbouring
-// shells are only barely visible and anything further is hidden.
+// shells are only barely visible and anything further is hidden. Incoming
+// (inner) shells are extra-dimmed so they don't intrude on the focus.
 function shellOpacity(distance) {
   const d = Math.abs(distance);
   if (d >= 1.3) return 0;
-  if (d <= 1) return 1 - 0.85 * d * d * (3 - 2 * d);
-  return 0.15 * (1 - (d - 1) / 0.3);
+  let op;
+  if (d <= 1) op = 1 - 0.92 * d * d * (3 - 2 * d);
+  else op = 0.08 * (1 - (d - 1) / 0.3);
+  // Extra dampening for the inner (upcoming) sphere so it stays a ghost
+  // preview rather than competing with the focus shell's nodes.
+  if (distance < -0.25) {
+    const k = Math.min(1, (-distance - 0.25) / 0.75);
+    op *= (1 - 0.7 * k);
+  }
+  return op;
 }
 
 // =====================================================================
@@ -678,17 +687,31 @@ function renderFrame() {
     const wy = y1 * R;
 
     // Back-side fade so peripheral/behind nodes don't crowd the front focus.
+    // Widened contrast curve so focus-shell front nodes clearly pop.
     const frontness = (z2 + 1) / 2;
-    const op = shellOp * (0.4 + frontness * 0.6);
+    const frontCurve = frontness * frontness * (3 - 2 * frontness);
+    const op = shellOp * (0.18 + frontCurve * 0.82);
 
     n.el.style.opacity = op.toFixed(3);
     n.el.style.pointerEvents = (shellOp > 0.5 && frontness > 0.25) ? "auto" : "none";
     // Focus shell stacks above neighbours; within a shell, front above back.
     const shellLayer = (n.shellIndex === Math.round(focus)) ? 2000 : 1000;
     n.el.style.zIndex = String(shellLayer + Math.round(z2 * 100));
+    // Small brightness + saturation boost for front-of-focus nodes so they
+    // pop without changing their pixel size.
+    const popping = shellOp > 0.7 ? frontCurve : 0;
+    n.el.style.filter = popping > 0.05
+      ? `brightness(${(1 + popping * 0.35).toFixed(3)}) saturate(${(1 + popping * 0.4).toFixed(3)})`
+      : "none";
+    // Shrink neighbour-shell cards down to a quarter size so the focus
+    // sphere's nodes are clearly the primary objects on screen. Focus
+    // nodes render at full size; ghosts taper to 0.25 via smoothstep.
+    const focusStrength = 1 - smoothstep(0.3, 0.8, Math.abs(distance));
+    const nodeScale = 0.25 + 0.75 * focusStrength;
     // translate3d(...,0) keeps the card out of the CSS perspective pipeline
     // so its pixel size does not change with zoom.
-    n.el.style.transform = `translate3d(${wx}px, ${wy}px, 0) translate(-50%, -50%)`;
+    n.el.style.transform =
+      `translate3d(${wx}px, ${wy}px, 0) translate(-50%, -50%) scale(${nodeScale.toFixed(3)})`;
     actuallyVisible++;
   }
 
