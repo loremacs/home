@@ -25,30 +25,44 @@
   ::-webkit-scrollbar-thumb { background: #1f2740; border-radius: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
 
-  #app {
-    display: grid;
-    grid-template-columns: 320px 1fr 320px;
-    grid-template-rows: 44px 1fr 220px;
-    grid-template-areas: "hdr hdr hdr" "left center right" "wall wall wall";
-    height: 100vh; width: 100vw;
+  #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden; }
+  #workspace {
+    position: relative; flex: 1; overflow: hidden;
+    background-color: var(--bg);
+    background-image: linear-gradient(rgba(27,35,56,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(27,35,56,0.4) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
-  #hdr { grid-area: hdr; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--bg2); border-bottom: 1px solid var(--border); z-index: 10; }
+  #hdr { display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--bg2); border-bottom: 1px solid var(--border); z-index: 10; }
   #hdr .brand { font-weight: 600; letter-spacing: 0.5px; color: var(--accent); margin-right: 6px; }
   #hdr .brand .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  #hdr input#q { width: 220px; }
+  #hdr input#q { width: 180px; }
   #hdr .spacer { flex: 1; }
-  #hdr .status { color: var(--muted); font-size: 11px; }
+  #hdr .status { color: var(--muted); font-size: 11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #hdr .back { color: var(--muted); font-size: 18px; padding: 0 6px; }
+  #hdr .icon-btn { background: none; border: none; color: var(--muted); font-size: 16px; padding: 4px 6px; border-radius: 4px; }
+  #hdr .icon-btn:hover { background: #1a2136; color: var(--ink); }
 
-  aside { background: var(--bg2); display: flex; flex-direction: column; min-height: 0; }
-  aside#left { grid-area: left; border-right: 1px solid var(--border); }
-  aside#right { grid-area: right; border-left: 1px solid var(--border); }
-  .rail-hdr { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
-  .rail-hdr .title { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+  /* ---- Floating panels ---- */
+  .panel { position: absolute; display: flex; flex-direction: column; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,0.5); min-width: 180px; min-height: 120px; overflow: hidden; }
+  .panel.minimized .panel-body { display: none; }
+  .panel.minimized .sources   { display: none; }
+  .panel.minimized .rail-foot { display: none; }
+  .panel.minimized .video-strip { display: none; }
+  .panel-bar { padding: 5px 8px; background: #0b0f1e; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 5px; cursor: grab; flex-shrink: 0; user-select: none; }
+  .panel-bar:active { cursor: grabbing; }
+  .panel-bar .ptitle { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); flex: 1; }
+  .panel-bar .pwin { background: none; border: none; color: var(--muted); font-size: 12px; padding: 1px 4px; border-radius: 3px; line-height: 1; cursor: pointer; }
+  .panel-bar .pwin:hover { background: #1a2136; color: var(--ink); }
+  .panel-body { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+  .resize-handle { position: absolute; bottom: 0; right: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+  .resize-handle::after { content: ''; position: absolute; bottom: 3px; right: 3px; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); opacity: 0.5; }
+  /* compat aliases for existing inner styles */
+  .rail-hdr { padding: 6px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .rail-hdr .title { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
   .rail-hdr .spacer { flex: 1; }
   .rail-body { flex: 1; overflow-y: auto; min-height: 0; }
-  .rail-foot { padding: 6px 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+  .rail-foot { padding: 5px 10px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); flex-shrink: 0; }
 
   .sources { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 4px 6px; max-height: 140px; overflow-y: auto; }
   .src-chip { font-size: 11px; padding: 2px 7px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; user-select: none; background: #0c1222; color: var(--muted); }
@@ -85,33 +99,47 @@
   .leaflet-popup-content a { color: var(--accent); }
   .leaflet-control-zoom a { background: var(--bg2) !important; color: var(--ink) !important; border-color: var(--border) !important; }
 
-  section#wall { grid-area: wall; background: #000; border-top: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
-  .wall-hdr { padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; gap: 6px; align-items: center; }
-  .wall-hdr .title { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
-  .wall-hdr .spacer { flex: 1; }
-  .wall-grid { flex: 1; display: grid; gap: 4px; padding: 4px; background: #000; min-height: 0; }
-  .wall-grid.g1 { grid-template: 1fr / 1fr; }
-  .wall-grid.g2 { grid-template: 1fr / 1fr 1fr; }
-  .wall-grid.g4 { grid-template: 1fr 1fr / 1fr 1fr; }
-  .wall-grid.g6 { grid-template: 1fr 1fr / 1fr 1fr 1fr; }
-  .wall-grid.g9 { grid-template: 1fr 1fr 1fr / 1fr 1fr 1fr; }
-  .wall-tile { position: relative; background: #0a0e18; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; min-height: 0; }
-  .wall-tile iframe, .wall-tile video { width: 100%; height: 100%; display: block; border: 0; background: #000; }
-  .wall-tile .label { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.7); padding: 2px 6px; font-size: 10px; border-radius: 3px; color: var(--ink); pointer-events: none; }
-  .wall-tile .close { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); border: 0; color: var(--ink); padding: 2px 6px; font-size: 10px; border-radius: 3px; cursor: pointer; }
+  /* ---- Video strip (right column) ---- */
+  .video-strip { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding: 4px; min-height: 0; }
+  .wall-tile { position: relative; flex-shrink: 0; height: 122px; background: #0a0c14; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; cursor: grab; transition: box-shadow 0.15s; }
+  .wall-tile:active { cursor: grabbing; }
+  .wall-tile.drag-over { box-shadow: 0 0 0 2px var(--accent); }
+  .wall-tile.dragging  { opacity: 0.4; }
+  .wall-tile iframe, .wall-tile video { width: 100%; height: 100%; display: block; border: 0; background: #000; pointer-events: none; }
+  .wall-tile:hover iframe, .wall-tile:hover video { pointer-events: auto; }
+  .wall-tile .label { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 16px 6px 4px; font-size: 10px; color: var(--ink); pointer-events: none; }
+  .wall-tile .close { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.75); border: none; color: var(--ink); width: 18px; height: 18px; font-size: 11px; border-radius: 3px; cursor: pointer; display: none; line-height: 1; padding: 0; }
+  .wall-tile:hover .close { display: flex; align-items: center; justify-content: center; }
   .wall-tile .close:hover { background: var(--danger); }
+  .wall-tile .drag-handle { position: absolute; top: 4px; left: 4px; color: rgba(255,255,255,0.4); font-size: 11px; pointer-events: none; display: none; }
+  .wall-tile:hover .drag-handle { display: block; }
 
-  .channel-picker { display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 10px; border-bottom: 1px solid var(--border); background: #0a0e18; max-height: 80px; overflow-y: auto; }
-  .ch-chip { font-size: 11px; padding: 2px 7px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; user-select: none; background: #0c1222; color: var(--muted); }
+  /* ---- Settings panel ---- */
+  .settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; }
+  .settings-overlay.open { display: block; }
+  .settings-panel { position: fixed; top: 0; right: 0; width: 460px; max-width: 100vw; height: 100vh; background: var(--bg2); border-left: 1px solid var(--border); z-index: 1001; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.25s ease; }
+  .settings-panel.open { transform: translateX(0); }
+  .sp-hdr { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .sp-hdr .title { font-weight: 600; font-size: 13px; flex: 1; }
+  .sp-body { flex: 1; overflow-y: auto; padding: 0; }
+  .sp-section { border-bottom: 1px solid var(--border); padding: 12px 14px; }
+  .sp-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+  .sp-row { display: flex; align-items: flex-start; gap: 10px; padding: 5px 0; border-bottom: 1px solid #111725; }
+  .sp-row:last-child { border-bottom: none; }
+  .sp-row .info { flex: 1; min-width: 0; }
+  .sp-row .info .name { font-size: 12px; font-weight: 500; }
+  .sp-row .info .url  { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+  .sp-row .info .tag  { font-size: 10px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .sp-toggle { flex-shrink: 0; margin-top: 2px; }
+  .ch-chip { font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; user-select: none; background: #0c1222; color: var(--muted); display: inline-block; margin: 2px; }
   .ch-chip.on { background: #3a1e5a; border-color: var(--accent2); color: var(--accent2); }
 
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; font-size: 12px; z-index: 9999; pointer-events: none; opacity: 0; transition: opacity .2s; }
   .toast.show { opacity: 1; }
 
-  @media (max-width: 900px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: 44px 40vh 1fr 160px; grid-template-areas: "hdr" "center" "left" "wall"; }
-    aside#right { display: none; }
-    #hdr input#q { width: 120px; }
+  @media (max-width: 700px) {
+    .panel#panel-events, .panel#panel-channels { display: none; }
+    #hdr input#q { width: 110px; }
   }
 </style>
 </head>
@@ -127,69 +155,95 @@
       <option value="24">Last 24 h</option>
       <option value="168">Last 7 d</option>
     </select>
-    <button id="btn2d" class="active" title="2D map">2D</button>
-    <button id="btn3d" title="3D globe">3D</button>
     <div class="spacer"></div>
     <span class="status" id="status">booting...</span>
-    <button id="btnRefresh" title="Refresh all">&#x21bb;</button>
+    <button id="btnRefresh" class="icon-btn" title="Refresh all">&#x21bb;</button>
+    <button id="btnSettings" class="icon-btn" title="Settings">&#9881;</button>
   </header>
 
-  <aside id="left">
-    <div class="rail-hdr">
-      <span class="title">News</span><span class="spacer"></span>
-      <button id="selAllFeeds" title="Toggle all">all</button>
-    </div>
-    <div class="sources" id="feedSources"></div>
-    <div class="rail-body" id="feedList"></div>
-    <div class="rail-foot" id="feedFoot">0 items</div>
-  </aside>
+  <div id="workspace">
 
-  <main id="center">
-    <div id="map2d"></div>
-    <div id="map3d"></div>
-    <div class="legend" id="legend">
-      <div class="row"><span class="dot" style="background:#ff5c7a"></span>Earthquake</div>
-      <div class="row"><span class="dot" style="background:#ffb86b"></span>Wildfire / EONET</div>
-      <div class="row"><span class="dot" style="background:#5dd6ff"></span>Weather alert</div>
-      <div class="row"><span class="dot" style="background:#7ef2a1"></span>ISS</div>
-      <div class="row"><span class="dot" style="background:#b08bff"></span>Aircraft</div>
+    <div class="panel" id="panel-news">
+      <div class="panel-bar">
+        <span class="ptitle">&#x1F4F0; News</span>
+        <button id="selAllFeeds" class="pwin" title="Toggle all">all</button>
+        <button class="pwin pmin" data-panel="panel-news" title="Minimise">&#x2212;</button>
+      </div>
+      <div class="panel-body">
+        <div class="sources" id="feedSources"></div>
+        <div class="rail-body" id="feedList"></div>
+        <div class="rail-foot" id="feedFoot">0 items</div>
+      </div>
+      <div class="resize-handle" data-panel="panel-news"></div>
     </div>
-    <div class="attr" id="attr">&copy; OSM &middot; USGS &middot; NASA EONET &middot; NOAA &middot; OpenSky</div>
-  </main>
 
-  <aside id="right">
-    <div class="rail-hdr">
-      <span class="title">Events</span><span class="spacer"></span>
-      <button id="selAllLayers" title="Toggle all">all</button>
+    <div class="panel" id="panel-map">
+      <div class="panel-bar">
+        <span class="ptitle">&#x1F30D; Map</span>
+        <button id="btn2d" class="pwin active" title="2D map">2D</button>
+        <button id="btn3d" class="pwin" title="3D globe">3D</button>
+        <button class="pwin pmin" data-panel="panel-map" title="Minimise">&#x2212;</button>
+      </div>
+      <div class="panel-body" style="position:relative;overflow:hidden">
+        <div id="map2d" style="position:absolute;inset:0"></div>
+        <div id="map3d" style="position:absolute;inset:0;display:none;background:radial-gradient(ellipse at center,#0a1430 0%,#000 70%)"></div>
+        <div class="legend" id="legend">
+          <div class="row"><span class="dot" style="background:#ff5c7a"></span>Earthquake</div>
+          <div class="row"><span class="dot" style="background:#ffb86b"></span>EONET event</div>
+          <div class="row"><span class="dot" style="background:#5dd6ff"></span>US alert</div>
+          <div class="row"><span class="dot" style="background:#7ef2a1"></span>ISS / Satellite</div>
+          <div class="row"><span class="dot" style="background:#b08bff"></span>Aircraft</div>
+          <div class="row"><span class="dot" style="background:#ff9f2e"></span>Launch</div>
+        </div>
+        <div class="attr" id="attr">&copy; OSM &middot; USGS &middot; NASA EONET &middot; NOAA &middot; Rainviewer</div>
+      </div>
+      <div class="resize-handle" data-panel="panel-map"></div>
     </div>
-    <div class="sources" id="layerSources"></div>
-    <div class="rail-body" id="eventList"></div>
-    <div class="rail-foot" id="eventFoot">0 events</div>
-  </aside>
 
-  <section id="wall">
-    <div class="wall-hdr">
-      <span class="title">Live channels</span>
-      <span class="spacer"></span>
-      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;">
-        <input type="checkbox" id="autoplay" checked> autoplay muted
-      </label>
-      <button data-layout="g1">1</button>
-      <button data-layout="g2">2</button>
-      <button data-layout="g4" class="active">4</button>
-      <button data-layout="g6">6</button>
-      <button data-layout="g9">9</button>
-      <button id="addCustomCh" title="Add YouTube URL or HLS stream">+</button>
+    <div class="panel" id="panel-events">
+      <div class="panel-bar">
+        <span class="ptitle">&#x26A1; Events</span>
+        <button id="selAllLayers" class="pwin" title="Toggle all">all</button>
+        <button class="pwin pmin" data-panel="panel-events" title="Minimise">&#x2212;</button>
+      </div>
+      <div class="panel-body">
+        <div class="sources" id="layerSources"></div>
+        <div class="rail-body" id="eventList"></div>
+        <div class="rail-foot" id="eventFoot">0 events</div>
+      </div>
+      <div class="resize-handle" data-panel="panel-events"></div>
     </div>
-    <div class="channel-picker" id="channelPicker"></div>
-    <div class="wall-grid g4" id="wallGrid"></div>
-  </section>
+
+    <div class="panel" id="panel-channels">
+      <div class="panel-bar">
+        <span class="ptitle">&#x1F4FA; Channels</span>
+        <button id="addCustomCh" class="pwin" title="Add stream">+</button>
+        <button class="pwin pmin" data-panel="panel-channels" title="Minimise">&#x2212;</button>
+      </div>
+      <div class="panel-body">
+        <div class="video-strip" id="videoStrip"></div>
+      </div>
+      <div class="resize-handle" data-panel="panel-channels"></div>
+    </div>
+
+  </div><!-- #workspace -->
+
+  <!-- Settings panel -->
+  <div class="settings-overlay" id="settingsOverlay"></div>
+  <div class="settings-panel" id="settingsPanel">
+    <div class="sp-hdr">
+      <span class="title">&#9881; Settings</span>
+      <button id="closeSettings" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px">&times;</button>
+    </div>
+    <div class="sp-body" id="spBody"></div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/globe.gl"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@4.1.3/dist/satellite.min.js"></script>
 <script id="main-script">
 "use strict";
 
@@ -220,26 +274,36 @@ const FEEDS = [
 ];
 
 const CHANNELS = [
-  { id:"bbcnews",   name:"BBC News",    yt:"UC16niRr50-MSBwiO3YDb3RA" },
-  { id:"aje",       name:"Al Jazeera",  yt:"UCNye-wNBqNL5ZzHSJj3l8Bg" },
-  { id:"dwnews",    name:"DW News",     yt:"UCknLrEdhRCp1aegoMqRaCZg" },
-  { id:"france24",  name:"France 24",   yt:"UCQfwfsi5VrQ8yKZ-UWmAEFg" },
-  { id:"nhk",       name:"NHK World",   yt:"UCSPEjw8F2nQDtmUKPFNF7_A" },
-  { id:"sky",       name:"Sky News",    yt:"UCoMdktPbSTixAyNGwb-UYkQ" },
-  { id:"bloomberg", name:"Bloomberg",   yt:"UCIALMKvObZNtJ6AmdCLP7Lg" },
-  { id:"cna",       name:"CNA",         yt:"UCFr3sz2t3bDp6Cux08B93KQ" },
-  { id:"nasa",      name:"NASA",        yt:"UCLA_DiR1FfKNvjuUpBHmylQ" },
-  { id:"euronews",  name:"Euronews",    yt:"UCSrZ1UkjJnG9WhrrcbxZApQ" },
-  { id:"abcau",     name:"ABC AU",      yt:"UCVgO39Bk5sMo66-6o6Spn6Q" },
-  { id:"cbcnews",   name:"CBC News",    yt:"UCuFFtHWoLl5fauMMD5Ww2jA" },
+  // News
+  { id:"bbcnews",   name:"BBC News",      yt:"UC16niRr50-MSBwiO3YDb3RA" },
+  { id:"aje",       name:"Al Jazeera",    yt:"UCNye-wNBqNL5ZzHSJj3l8Bg" },
+  { id:"dwnews",    name:"DW News",       yt:"UCknLrEdhRCp1aegoMqRaCZg" },
+  { id:"france24",  name:"France 24",     yt:"UCQfwfsi5VrQ8yKZ-UWmAEFg" },
+  { id:"nhk",       name:"NHK World",     yt:"UCSPEjw8F2nQDtmUKPFNF7_A" },
+  { id:"sky",       name:"Sky News",      yt:"UCoMdktPbSTixAyNGwb-UYkQ" },
+  { id:"bloomberg", name:"Bloomberg TV",  yt:"UCIALMKvObZNtJ6AmdCLP7Lg" },
+  { id:"cna",       name:"CNA",           yt:"UCFr3sz2t3bDp6Cux08B93KQ" },
+  { id:"euronews",  name:"Euronews",      yt:"UCSrZ1UkjJnG9WhrrcbxZApQ" },
+  { id:"abcau",     name:"ABC AU",        yt:"UCVgO39Bk5sMo66-6o6Spn6Q" },
+  { id:"cbcnews",   name:"CBC News",      yt:"UCuFFtHWoLl5fauMMD5Ww2jA" },
+  // Space / Science
+  { id:"nasa",      name:"NASA TV",       yt:"UCLA_DiR1FfKNvjuUpBHmylQ" },
+  { id:"spacex",    name:"SpaceX",        yt:"UCtI0Hodo5o5dUb67FeUjAlg" },
+  { id:"nasajpl",   name:"NASA JPL",      yt:"UCryGec9PnBCTtfiShlH-WoA" },
+  // Webcams / Live
+  { id:"earthtv",   name:"EarthTV Cams",  yt:"UCJ3ZJagnMPFD5SPGU85YQTQ" },
+  { id:"weatherch", name:"Weather Ch.",   yt:"UCbyFYVMoQPPyJK2FdYn85ag" },
 ];
 
 const LAYERS = [
-  { id:"quakes",   name:"Earthquakes", color:"#ff5c7a", on:true  },
-  { id:"eonet",    name:"Nat. events", color:"#ffb86b", on:true  },
-  { id:"alerts",   name:"US alerts",   color:"#5dd6ff", on:false },
-  { id:"iss",      name:"ISS",         color:"#7ef2a1", on:true  },
-  { id:"aircraft", name:"Aircraft",    color:"#b08bff", on:false },
+  { id:"quakes",     name:"Earthquakes",    color:"#ff5c7a", on:true  },
+  { id:"eonet",      name:"Nat. events",    color:"#ffb86b", on:true  },
+  { id:"alerts",     name:"US alerts",      color:"#5dd6ff", on:false },
+  { id:"iss",        name:"ISS",            color:"#7ef2a1", on:true  },
+  { id:"satellites", name:"Satellites",     color:"#a0ffcc", on:false },
+  { id:"aircraft",   name:"Aircraft",       color:"#b08bff", on:false },
+  { id:"launches",   name:"Space launches", color:"#ff9f2e", on:true  },
+  { id:"weather",    name:"Weather radar",  color:"#80e0ff", on:false },
 ];
 
 const STORE_KEY = "newsmap.state.v1";
@@ -259,6 +323,8 @@ const state = {
   map: null, globe: null, layerGroups: {},
   autoplay: true,
   customChannels: [],
+  channelOrder: null,
+  pollIntervalSecs: 60,
 };
 
 function loadState() {
@@ -270,9 +336,12 @@ function loadState() {
     if (Array.isArray(s.layers)) state.layers = new Set(s.layers);
     if (Array.isArray(s.channels) && s.channels.length) state.channels = new Set(s.channels);
     if (Array.isArray(s.customChannels)) state.customChannels = s.customChannels;
+    if (Array.isArray(s.channelOrder)) state.channelOrder = s.channelOrder;
     if (typeof s.autoplay === "boolean") state.autoplay = s.autoplay;
     if (s.timeHours) state.timeHours = s.timeHours;
     if (s.mode) state.mode = s.mode;
+    if (s.pollIntervalSecs) state.pollIntervalSecs = s.pollIntervalSecs;
+    if (s.pollFeedSecs) state.pollFeedSecs = s.pollFeedSecs;
   } catch(e) {}
 }
 function saveState() {
@@ -280,7 +349,10 @@ function saveState() {
     localStorage.setItem(STORE_KEY, JSON.stringify({
       feeds:[...state.feeds], layers:[...state.layers],
       channels:[...state.channels], customChannels: state.customChannels,
+      channelOrder: state.channelOrder,
       autoplay: state.autoplay, timeHours: state.timeHours, mode: state.mode,
+      pollIntervalSecs: state.pollIntervalSecs,
+      pollFeedSecs: state.pollFeedSecs,
     }));
   } catch(e) {}
 }
@@ -498,29 +570,102 @@ async function loadISS() {
   } catch(e) { console.warn("iss",e); return []; }
 }
 async function loadAircraft() {
+  // OpenSky blocks direct browser CORS — proxy via allorigins
   try {
-    const r = await fetchJSON("https://opensky-network.org/api/states/all");
-    const states = (r.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 300);
+    const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://opensky-network.org/api/states/all");
+    const r = await fetchJSON(proxied);
+    const states = (r.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 200);
     return states.map(s => ({
       id:"ac:"+s[0], layer:"aircraft",
-      title: ((s[1]||s[0])||"").trim() + " · " + (s[2]||"?"),
+      title: ((s[1]||s[0])||"  ").trim() + " · " + (s[2]||"?"),
       ts: (r.time || Date.now()/1000)*1000,
       lat: s[6], lng: s[5], alt: s[7], vel: s[9],
       url: "https://opensky-network.org/aircraft-profile?icao24="+s[0],
     }));
   } catch(e) { console.warn("aircraft",e); return []; }
 }
+
+// ---------- NEW EVENT SOURCES ----------
+let _rainviewerLayer = null;
+async function loadRainviewer() {
+  if (!state.map) return;
+  if (!state.layers.has("weather")) {
+    if (_rainviewerLayer) { state.map.removeLayer(_rainviewerLayer); _rainviewerLayer = null; }
+    return;
+  }
+  try {
+    const data = await fetchJSON("https://api.rainviewer.com/public/weather-maps.json");
+    const frames = data.radar?.past;
+    if (!frames || !frames.length) return;
+    const path = frames[frames.length - 1].path;
+    if (_rainviewerLayer) state.map.removeLayer(_rainviewerLayer);
+    _rainviewerLayer = L.tileLayer(
+      `https://tilecache.rainviewer.com${path}/512/{z}/{x}/{y}/4/1_1.png`,
+      { opacity: 0.55, tileSize: 512, zoomOffset: -1, attribution: "RainViewer" }
+    ).addTo(state.map);
+  } catch(e) { console.warn("rainviewer", e); }
+}
+
+async function loadLaunches() {
+  try {
+    // Launch Library 2 - free, 15 req/hr, no key needed
+    const r = await fetchJSON("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?format=json&limit=12&ordering=net");
+    return (r.results || []).filter(l => l.pad?.latitude && l.pad?.longitude).map(l => ({
+      id: "launch:" + l.id, layer: "launches",
+      title: (l.name || "Launch") + (l.launch_service_provider?.name ? " · " + l.launch_service_provider.name : ""),
+      ts: new Date(l.net || l.window_start || Date.now()).getTime(),
+      lat: parseFloat(l.pad.latitude), lng: parseFloat(l.pad.longitude),
+      url: l.url || null,
+      rocket: l.rocket?.configuration?.name || "",
+      location: l.pad.location?.name || "",
+    }));
+  } catch(e) { console.warn("launches", e); return []; }
+}
+
+// Extra satellite tracking via satellite.js + tle.ivanstanojevic.me (free, no key)
+const TRACKED_SATS = [
+  { id: 48274, name: "Tiangong (CSS)" },
+  { id: 20580, name: "Hubble" },
+  { id: 43226, name: "Starlink-1" },
+];
+async function loadSatellites() {
+  if (typeof satellite === "undefined") return [];
+  const out = [];
+  await Promise.allSettled(TRACKED_SATS.map(async sat => {
+    try {
+      const data = await fetchJSON(`https://tle.ivanstanojevic.me/api/tle/${sat.id}`);
+      const satrec = satellite.twoline2satrec(data.line1, data.line2);
+      const now = new Date();
+      const { position } = satellite.propagate(satrec, now);
+      if (!position || position === true) return;
+      const gmst = satellite.gstime(now);
+      const geo = satellite.eciToGeodetic(position, gmst);
+      out.push({
+        id: "sat:" + sat.id, layer: "satellites",
+        title: sat.name + ` (alt ${Math.round(geo.height)} km)`,
+        ts: now.getTime(),
+        lat: satellite.degreesLat(geo.latitude),
+        lng: satellite.degreesLong(geo.longitude),
+        url: `https://celestrak.org/SATCAT/record.php?CATNR=${sat.id}`,
+      });
+    } catch(e) { console.warn("sat", sat.id, e); }
+  }));
+  return out;
+}
 async function loadAllEvents() {
   setStatus("loading events...");
   const tasks = [
-    state.layers.has("quakes")   ? loadQuakes()   : Promise.resolve([]),
-    state.layers.has("eonet")    ? loadEONET()    : Promise.resolve([]),
-    state.layers.has("alerts")   ? loadAlerts()   : Promise.resolve([]),
-    state.layers.has("iss")      ? loadISS()      : Promise.resolve([]),
-    state.layers.has("aircraft") ? loadAircraft() : Promise.resolve([]),
+    state.layers.has("quakes")     ? loadQuakes()      : Promise.resolve([]),
+    state.layers.has("eonet")      ? loadEONET()       : Promise.resolve([]),
+    state.layers.has("alerts")     ? loadAlerts()      : Promise.resolve([]),
+    state.layers.has("iss")        ? loadISS()         : Promise.resolve([]),
+    state.layers.has("satellites") ? loadSatellites()  : Promise.resolve([]),
+    state.layers.has("aircraft")   ? loadAircraft()    : Promise.resolve([]),
+    state.layers.has("launches")   ? loadLaunches()    : Promise.resolve([]),
   ];
   const all = (await Promise.all(tasks)).flat();
   state.events = all.sort((a,b) => b.ts - a.ts);
+  await loadRainviewer(); // tile layer — separate from point events
   renderEvents(); renderMapLayers();
   setStatus("events: " + state.events.length + " markers");
 }
@@ -547,12 +692,14 @@ function markerFor(evt) {
 
 function renderMapLayers() {
   if (!state.map) return;
-  for (const l of LAYERS) state.layerGroups[l.id].clearLayers();
+  const ALWAYS = new Set(["iss","satellites","aircraft","launches"]);
+  for (const l of LAYERS) { if (state.layerGroups[l.id]) state.layerGroups[l.id].clearLayers(); }
   const cutoff = Date.now() - state.timeHours*3600*1000;
   for (const evt of state.events) {
     if (!state.layers.has(evt.layer)) continue;
-    if (evt.ts < cutoff && evt.layer !== "iss" && evt.layer !== "aircraft") continue;
-    markerFor(evt).addTo(state.layerGroups[evt.layer]);
+    if (evt.layer === "weather") continue; // handled as tile layer
+    if (evt.ts < cutoff && !ALWAYS.has(evt.layer)) continue;
+    if (state.layerGroups[evt.layer]) markerFor(evt).addTo(state.layerGroups[evt.layer]);
   }
   if (state.mode === "3d") renderGlobePoints();
 }
@@ -582,11 +729,13 @@ function initGlobe3D() {
 }
 function renderGlobePoints() {
   if (!state.globe) return;
+  const ALWAYS = new Set(["iss","satellites","aircraft","launches"]);
   const cutoff = Date.now() - state.timeHours*3600*1000;
   const pts = [];
   for (const evt of state.events) {
     if (!state.layers.has(evt.layer)) continue;
-    if (evt.ts < cutoff && evt.layer !== "iss" && evt.layer !== "aircraft") continue;
+    if (evt.layer === "weather") continue;
+    if (evt.ts < cutoff && !ALWAYS.has(evt.layer)) continue;
     const layer = LAYERS.find(l => l.id === evt.layer);
     pts.push({ lat: evt.lat, lng: evt.lng, color: layer?.color || "#fff", title: evt.title, url: evt.url });
   }
@@ -689,75 +838,338 @@ function renderEvents() {
   $("eventFoot").textContent = items.length + " events";
 }
 
-// ---------- VIDEO WALL ----------
+// ---------- VIDEO STRIP ----------
 function ytEmbed(channelId) {
-  const mute = state.autoplay ? "1" : "1"; // always mute
   const auto = state.autoplay ? "1" : "0";
-  return `https://www.youtube-nocookie.com/embed/live_stream?channel=${channelId}&autoplay=${auto}&mute=${mute}`;
+  return `https://www.youtube-nocookie.com/embed/live_stream?channel=${channelId}&autoplay=${auto}&mute=1`;
 }
-function renderChannelPicker() {
-  const host = $("channelPicker");
-  host.innerHTML = "";
-  const all = [...CHANNELS, ...state.customChannels];
-  for (const c of all) {
-    const chip = document.createElement("div");
-    chip.className = "ch-chip" + (state.channels.has(c.id) ? " on" : "");
-    chip.textContent = c.name;
-    chip.onclick = () => {
-      if (state.channels.has(c.id)) state.channels.delete(c.id);
-      else state.channels.add(c.id);
-      saveState(); renderChannelPicker(); renderWall();
-    };
-    host.appendChild(chip);
+
+let dragSrcId = null;
+function makeTile(c) {
+  const tile = document.createElement("div");
+  tile.className = "wall-tile";
+  tile.dataset.ch = c.id;
+  tile.draggable = true;
+  const handle = document.createElement("span");
+  handle.className = "drag-handle"; handle.textContent = "⠿";
+  tile.appendChild(handle);
+  if (c.yt) {
+    const iframe = document.createElement("iframe");
+    iframe.src = ytEmbed(c.yt);
+    iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+    iframe.allowFullscreen = true; iframe.loading = "lazy";
+    tile.appendChild(iframe);
+  } else if (c.hls) {
+    const vid = document.createElement("video");
+    vid.controls = true; vid.muted = true; vid.autoplay = state.autoplay; vid.playsInline = true;
+    if (window.Hls && Hls.isSupported()) {
+      const hls = new Hls(); hls.loadSource(c.hls); hls.attachMedia(vid);
+    } else if (vid.canPlayType("application/vnd.apple.mpegurl")) { vid.src = c.hls; }
+    tile.appendChild(vid);
+  } else if (c.url) {
+    const iframe = document.createElement("iframe");
+    iframe.src = c.url; iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+    iframe.allowFullscreen = true; iframe.loading = "lazy";
+    tile.appendChild(iframe);
   }
+  const label = document.createElement("div"); label.className = "label"; label.textContent = c.name; tile.appendChild(label);
+  const x = document.createElement("button"); x.className = "close"; x.textContent = "×"; x.dataset.ch = c.id; tile.appendChild(x);
+  // drag-to-reorder
+  tile.addEventListener("dragstart", e => { dragSrcId = c.id; tile.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; });
+  tile.addEventListener("dragend",   () => { dragSrcId = null; tile.classList.remove("dragging"); document.querySelectorAll(".wall-tile").forEach(t=>t.classList.remove("drag-over")); });
+  tile.addEventListener("dragover",  e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; tile.classList.add("drag-over"); });
+  tile.addEventListener("dragleave", () => tile.classList.remove("drag-over"));
+  tile.addEventListener("drop",      e => {
+    e.preventDefault(); tile.classList.remove("drag-over");
+    if (!dragSrcId || dragSrcId === c.id) return;
+    const order = state.channelOrder;
+    const from = order.indexOf(dragSrcId), to = order.indexOf(c.id);
+    if (from < 0 || to < 0) return;
+    order.splice(from, 1); order.splice(to, 0, dragSrcId);
+    saveState(); renderWall();
+  });
+  return tile;
 }
+
 function renderWall() {
-  const host = $("wallGrid");
+  const host = $("videoStrip");
+  if (!host) return;
   host.innerHTML = "";
+  // ensure order array contains all enabled channels
   const all = [...CHANNELS, ...state.customChannels];
-  const layout = [...host.classList].find(c => c.startsWith("g")) || "g4";
-  const cap = { g1:1, g2:2, g4:4, g6:6, g9:9 }[layout] || 4;
-  const chosen = all.filter(c => state.channels.has(c.id)).slice(0, cap);
-  for (const c of chosen) {
-    const tile = document.createElement("div");
-    tile.className = "wall-tile";
-    if (c.yt) {
-      tile.innerHTML = `
-        <iframe src="${ytEmbed(c.yt)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe>
-        <div class="label">${esc(c.name)}</div>
-        <button class="close" data-ch="${c.id}">&times;</button>
-      `;
-    } else if (c.hls) {
-      const vid = document.createElement("video");
-      vid.controls = true; vid.muted = state.autoplay; vid.autoplay = state.autoplay; vid.playsInline = true;
-      if (window.Hls && Hls.isSupported()) {
-        const hls = new Hls(); hls.loadSource(c.hls); hls.attachMedia(vid);
-      } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
-        vid.src = c.hls;
-      }
-      tile.appendChild(vid);
-      const label = document.createElement("div"); label.className = "label"; label.textContent = c.name; tile.appendChild(label);
-      const x = document.createElement("button"); x.className = "close"; x.textContent = "×"; x.dataset.ch = c.id; tile.appendChild(x);
-    } else if (c.url) {
-      tile.innerHTML = `<iframe src="${esc(c.url)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe>
-        <div class="label">${esc(c.name)}</div>
-        <button class="close" data-ch="${c.id}">&times;</button>`;
-    }
-    host.appendChild(tile);
+  if (!state.channelOrder) state.channelOrder = all.map(c => c.id);
+  // add any new channel ids not yet in order
+  for (const c of all) { if (!state.channelOrder.includes(c.id)) state.channelOrder.push(c.id); }
+  const ordered = state.channelOrder.map(id => all.find(c => c.id === id)).filter(Boolean);
+  const chosen = ordered.filter(c => state.channels.has(c.id));
+  if (chosen.length === 0) {
+    host.innerHTML = `<div style="padding:14px 10px;font-size:11px;color:var(--muted);text-align:center">No channels selected.<br>Open ⚙ Settings to pick channels.</div>`;
+    return;
   }
+  const frag = document.createDocumentFragment();
+  for (const c of chosen) frag.appendChild(makeTile(c));
+  host.appendChild(frag);
   host.onclick = (e) => {
     const b = e.target.closest(".close");
     if (!b) return;
     state.channels.delete(b.dataset.ch);
-    saveState(); renderChannelPicker(); renderWall();
+    saveState(); renderWall(); renderSettingsPanel();
   };
 }
-function setWallLayout(cls) {
-  const g = $("wallGrid");
-  g.classList.remove("g1","g2","g4","g6","g9");
-  g.classList.add(cls);
-  document.querySelectorAll(".wall-hdr [data-layout]").forEach(b => b.classList.toggle("active", b.dataset.layout === cls));
-  renderWall();
+
+// ---------- SETTINGS PANEL ----------
+function renderSettingsPanel() {
+  const body = $("spBody");
+  if (!body) return;
+  const allChannels = [...CHANNELS, ...state.customChannels];
+  body.innerHTML = "";
+
+  // Preferences
+  const sec0 = document.createElement("div"); sec0.className = "sp-section";
+  sec0.innerHTML = `<div class="sp-section-title">Preferences</div>
+    <div class="sp-row"><div class="info"><div class="name">Autoplay channels (muted)</div></div>
+      <div class="sp-toggle"><input type="checkbox" id="autoplayChk" ${state.autoplay ? "checked" : ""}></div></div>
+    <div class="sp-row"><div class="info"><div class="name">Time window</div></div>
+      <select id="timeFilterSp">
+        <option value="1" ${state.timeHours===1?"selected":""}>Last 1 h</option>
+        <option value="6" ${state.timeHours===6?"selected":""}>Last 6 h</option>
+        <option value="24" ${state.timeHours===24?"selected":""}>Last 24 h</option>
+        <option value="168" ${state.timeHours===168?"selected":""}>Last 7 d</option>
+      </select></div>`;
+  body.appendChild(sec0);
+  sec0.querySelector("#autoplayChk").onchange = e => { state.autoplay = e.target.checked; $("autoplay") && ($("autoplay").checked = state.autoplay); saveState(); renderWall(); };
+  sec0.querySelector("#timeFilterSp").onchange = e => {
+    state.timeHours = +e.target.value;
+    const tf = $("timeFilter"); if (tf) tf.value = String(state.timeHours);
+    saveState(); renderNews(); renderEvents(); renderMapLayers();
+  };
+
+  // Channels
+  const sec1 = document.createElement("div"); sec1.className = "sp-section";
+  let chHtml = `<div class="sp-section-title">Live Channels <span style="color:var(--muted);font-weight:400;font-size:10px">(${state.channels.size} active)</span></div>`;
+  for (const c of allChannels) {
+    const on = state.channels.has(c.id);
+    const src = c.yt ? `youtube.com/channel/${c.yt}` : (c.hls ? c.hls : (c.url || ""));
+    chHtml += `<div class="sp-row"><div class="info"><div class="name">${esc(c.name)}</div><div class="url">${esc(src)}</div></div>
+      <div class="sp-toggle"><input type="checkbox" data-chid="${c.id}" ${on ? "checked" : ""}></div></div>`;
+  }
+  sec1.innerHTML = chHtml;
+  sec1.querySelectorAll("input[data-chid]").forEach(inp => {
+    inp.onchange = () => {
+      if (inp.checked) state.channels.add(inp.dataset.chid);
+      else state.channels.delete(inp.dataset.chid);
+      saveState(); renderWall();
+    };
+  });
+  const addBtn = document.createElement("button");
+  addBtn.style.cssText = "margin-top:8px;font-size:11px;";
+  addBtn.textContent = "+ Add custom stream";
+  addBtn.onclick = addCustomChannel;
+  sec1.appendChild(addBtn);
+  body.appendChild(sec1);
+
+  // News sources
+  const sec2 = document.createElement("div"); sec2.className = "sp-section";
+  let feedHtml = `<div class="sp-section-title">News Sources <span style="color:var(--muted);font-weight:400;font-size:10px">(${state.feeds.size}/${FEEDS.length} active)</span></div>`;
+  for (const f of FEEDS) {
+    const on = state.feeds.has(f.id);
+    const err = state.feedErr.has(f.id);
+    feedHtml += `<div class="sp-row"><div class="info"><div class="name">${esc(f.name)}<span style="color:${err?"var(--danger)":"var(--muted)"};font-size:10px;margin-left:6px">${err ? "⚠ error" : f.kind}</span></div><div class="url">${esc(f.url)}</div></div>
+      <div class="sp-toggle"><input type="checkbox" data-fid="${f.id}" ${on ? "checked" : ""}></div></div>`;
+  }
+  sec2.innerHTML = feedHtml;
+  sec2.querySelectorAll("input[data-fid]").forEach(inp => {
+    inp.onchange = () => {
+      if (inp.checked) state.feeds.add(inp.dataset.fid);
+      else state.feeds.delete(inp.dataset.fid);
+      saveState(); renderFeedSources(); renderNews();
+    };
+  });
+  body.appendChild(sec2);
+
+  // Event layers
+  const sec3 = document.createElement("div"); sec3.className = "sp-section";
+  let layerHtml = `<div class="sp-section-title">Event Layers</div>`;
+  const layerDesc = {
+    quakes:     "USGS all_day GeoJSON — updates every 60s",
+    eonet:      "NASA EONET v3 — open natural events (wildfires, storms, volcanoes…)",
+    alerts:     "NOAA weather.gov active alerts — US only",
+    iss:        "wheretheiss.at — live ISS position",
+    satellites: "satellite.js + tle.ivanstanojevic.me — Tiangong, Hubble, Starlink (SGP4 propagation)",
+    aircraft:   "OpenSky Network via allorigins proxy — live ADS-B states (rate-limited, ~200 aircraft)",
+    launches:   "Launch Library 2 (thespacedevs.com) — upcoming orbital launches, free 15 req/hr",
+    weather:    "RainViewer — global precipitation radar tile overlay, ~10 min behind real-time",
+  };
+  for (const l of LAYERS) {
+    const on = state.layers.has(l.id);
+    layerHtml += `<div class="sp-row"><div class="info"><div class="name"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${l.color};margin-right:6px;vertical-align:middle"></span>${esc(l.name)}</div><div class="url">${esc(layerDesc[l.id]||"")} </div></div>
+      <div class="sp-toggle"><input type="checkbox" data-lid="${l.id}" ${on ? "checked" : ""}></div></div>`;
+  }
+  sec3.innerHTML = layerHtml;
+  sec3.querySelectorAll("input[data-lid]").forEach(inp => {
+    inp.onchange = async () => {
+      if (inp.checked) state.layers.add(inp.dataset.lid);
+      else state.layers.delete(inp.dataset.lid);
+      saveState(); renderLayerSources(); await loadAllEvents();
+    };
+  });
+  body.appendChild(sec3);
+
+  // Polling
+  const sec4 = document.createElement("div"); sec4.className = "sp-section";
+  sec4.innerHTML = `<div class="sp-section-title">Polling Intervals</div>
+    <div class="sp-row"><div class="info"><div class="name">Events refresh (seconds)</div><div class="url">Earthquakes, ISS, aircraft, launches, weather radar</div></div>
+      <div class="sp-toggle"><input type="number" id="pollEvtInp" min="15" max="3600" step="5" value="${state.pollIntervalSecs}" style="width:60px"></div></div>
+    <div class="sp-row"><div class="info"><div class="name">News refresh (minutes)</div><div class="url">RSS feeds, Reddit, HN, GDELT — always ≥5 min to be polite</div></div>
+      <div class="sp-toggle"><input type="number" id="pollFeedInp" min="5" max="60" step="5" value="${Math.round((state.pollFeedSecs||300)/60)}" style="width:60px"></div></div>
+    <p style="font-size:11px;color:var(--muted);margin:6px 0 0">Changes take effect immediately. Panels snap to a 24px grid — drag the title bar, resize from the corner.</p>`;
+  sec4.querySelector("#pollEvtInp").onchange = e => {
+    const v = Math.max(15, Math.min(3600, +e.target.value));
+    state.pollIntervalSecs = v; saveState(); restartPolling();
+  };
+  sec4.querySelector("#pollFeedInp").onchange = e => {
+    const v = Math.max(5, Math.min(60, +e.target.value)) * 60;
+    state.pollFeedSecs = v; saveState(); restartPolling();
+  };
+  body.appendChild(sec4);
+
+  // About
+  const sec5 = document.createElement("div"); sec5.className = "sp-section";
+  sec5.innerHTML = `<div class="sp-section-title">About</div>
+    <p style="font-size:12px;color:var(--muted);margin:0">All data is open and keyless — no signup, no paywall.<br>
+    Preferences and panel layout stored in <code>localStorage</code>.</p>
+    <p style="margin:8px 0 0;font-size:11px"><a href="https://github.com/loremacs/home" target="_blank" rel="noopener">Source on GitHub</a></p>`;
+  body.appendChild(sec5);
+}
+
+function openSettings() {
+  renderSettingsPanel();
+  $("settingsPanel").classList.add("open");
+  $("settingsOverlay").classList.add("open");
+}
+function closeSettings() {
+  $("settingsPanel").classList.remove("open");
+  $("settingsOverlay").classList.remove("open");
+}
+
+function addCustomChannel() {
+  const u = prompt("Paste a YouTube live URL, YouTube channel URL, or .m3u8 HLS stream URL:");
+  if (!u) return;
+  const ch = parseCustomChannel(u);
+  if (!ch) { toast("Could not parse URL"); return; }
+  state.customChannels.push(ch);
+  state.channels.add(ch.id);
+  if (!state.channelOrder) state.channelOrder = [];
+  state.channelOrder.push(ch.id);
+  saveState(); renderWall(); renderSettingsPanel();
+  toast("Stream added");
+}
+
+// ---------- FLOATING PANEL SYSTEM ----------
+const PANEL_SNAP = 24;
+const PANEL_IDS = ["panel-news","panel-map","panel-events","panel-channels"];
+let _zTop = 20;
+
+function defaultPanelLayout() {
+  const W = window.innerWidth, H = window.innerHeight - 44;
+  return {
+    "panel-news":     { x:0,       y:0, w:296,   h:H },
+    "panel-map":      { x:296,     y:0, w:Math.max(320, W-786), h:H },
+    "panel-events":   { x:Math.max(616, W-490), y:0, w:272, h:H },
+    "panel-channels": { x:Math.max(888, W-210), y:0, w:210, h:H },
+  };
+}
+
+function applyPanelPos(el, pos, minimized) {
+  el.style.left = pos.x + "px"; el.style.top = pos.y + "px";
+  el.style.width = pos.w + "px";
+  if (minimized) { el.classList.add("minimized"); el.style.height = "auto"; }
+  else { el.classList.remove("minimized"); el.style.height = pos.h + "px"; }
+}
+
+function savePanelLayout() {
+  const layout = {};
+  for (const id of PANEL_IDS) {
+    const el = $(id); if (!el) continue;
+    layout[id] = { x:el.offsetLeft, y:el.offsetTop, w:el.offsetWidth,
+      h: el.classList.contains("minimized") ? (parseInt(el.dataset.lastH)||200) : el.offsetHeight,
+      minimized: el.classList.contains("minimized") };
+  }
+  try { localStorage.setItem("newsmap.panels.v1", JSON.stringify(layout)); } catch(e){}
+}
+
+function bringToFront(el) { el.style.zIndex = ++_zTop; }
+
+function makeDraggable(panel, bar) {
+  bar.addEventListener("mousedown", e => {
+    if (e.button !== 0 || e.target.tagName === "BUTTON" || e.target.tagName === "SELECT") return;
+    e.preventDefault(); bringToFront(panel);
+    const ox = e.clientX - panel.offsetLeft, oy = e.clientY - panel.offsetTop;
+    const ws = $("workspace");
+    const move = ev => {
+      let x = Math.round((ev.clientX - ox)/PANEL_SNAP)*PANEL_SNAP;
+      let y = Math.round((ev.clientY - oy)/PANEL_SNAP)*PANEL_SNAP;
+      x = Math.max(0, Math.min(ws.offsetWidth-40, x));
+      y = Math.max(0, Math.min(ws.offsetHeight-24, y));
+      panel.style.left = x+"px"; panel.style.top = y+"px";
+    };
+    const up = () => {
+      savePanelLayout();
+      if (panel.id==="panel-map" && state.map) state.map.invalidateSize();
+      document.removeEventListener("mousemove",move);
+      document.removeEventListener("mouseup",up);
+    };
+    document.addEventListener("mousemove",move);
+    document.addEventListener("mouseup",up);
+  });
+}
+
+function makeResizable(panel, handle) {
+  handle.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const sx=e.clientX, sy=e.clientY, sw=panel.offsetWidth, sh=panel.offsetHeight;
+    const move = ev => {
+      let w=Math.round((sw+ev.clientX-sx)/PANEL_SNAP)*PANEL_SNAP;
+      let h=Math.round((sh+ev.clientY-sy)/PANEL_SNAP)*PANEL_SNAP;
+      w=Math.max(180,w); h=Math.max(96,h);
+      panel.style.width=w+"px"; panel.style.height=h+"px";
+      if (panel.id==="panel-map" && state.map) state.map.invalidateSize();
+    };
+    const up = () => { savePanelLayout(); document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
+    document.addEventListener("mousemove",move);
+    document.addEventListener("mouseup",up);
+  });
+}
+
+function initPanels() {
+  let saved = null;
+  try { const r=localStorage.getItem("newsmap.panels.v1"); if(r) saved=JSON.parse(r); } catch(e){}
+  const defaults = defaultPanelLayout();
+  for (const id of PANEL_IDS) {
+    const el = $(id); if (!el) continue;
+    const pos = saved?.[id] || defaults[id];
+    applyPanelPos(el, pos, saved?.[id]?.minimized || false);
+    el.style.zIndex = _zTop++;
+    // drag
+    const bar = el.querySelector(".panel-bar"); if (bar) makeDraggable(el, bar);
+    // resize
+    const rh = el.querySelector(".resize-handle"); if (rh) makeResizable(el, rh);
+    // minimize button
+    const minBtn = el.querySelector(".pmin");
+    if (minBtn) minBtn.onclick = () => {
+      const wasMin = el.classList.contains("minimized");
+      if (!wasMin) el.dataset.lastH = el.offsetHeight;
+      el.classList.toggle("minimized");
+      const isMin = el.classList.contains("minimized");
+      el.style.height = isMin ? "auto" : (el.dataset.lastH||200)+"px";
+      minBtn.innerHTML = isMin ? "&#x25A1;" : "&#x2212;";
+      if (!isMin && id==="panel-map" && state.map) setTimeout(()=>state.map.invalidateSize(),50);
+      savePanelLayout();
+    };
+    // bring to front on any click
+    el.addEventListener("mousedown", () => bringToFront(el), true);
+  }
 }
 
 // ---------- WIRING ----------
@@ -769,9 +1181,12 @@ function wireUI() {
     await Promise.all([loadAllFeeds(), loadAllEvents()]);
     toast("Refreshed");
   };
-  $("q").oninput = (e) => { state.query = e.target.value; renderNews(); };
+  $("btnSettings").onclick = openSettings;
+  $("closeSettings").onclick = closeSettings;
+  $("settingsOverlay").onclick = closeSettings;
+  $("q").oninput = e => { state.query = e.target.value; renderNews(); };
   $("timeFilter").value = String(state.timeHours);
-  $("timeFilter").onchange = (e) => { state.timeHours = +e.target.value; saveState(); renderNews(); renderEvents(); renderMapLayers(); };
+  $("timeFilter").onchange = e => { state.timeHours = +e.target.value; saveState(); renderNews(); renderEvents(); renderMapLayers(); };
   $("selAllFeeds").onclick = () => {
     if (state.feeds.size === FEEDS.length) state.feeds.clear();
     else state.feeds = new Set(FEEDS.map(f => f.id));
@@ -782,26 +1197,8 @@ function wireUI() {
     else state.layers = new Set(LAYERS.map(l => l.id));
     saveState(); renderLayerSources(); await loadAllEvents();
   };
-  $("autoplay").checked = state.autoplay;
-  $("autoplay").onchange = (e) => { state.autoplay = e.target.checked; saveState(); renderWall(); };
-  document.querySelectorAll(".wall-hdr [data-layout]").forEach(b => {
-    b.onclick = () => setWallLayout(b.dataset.layout);
-  });
-  $("addCustomCh").onclick = () => {
-    const u = prompt("Paste a YouTube live URL, YouTube channel URL, or .m3u8 HLS stream URL:");
-    if (!u) return;
-    const ch = parseCustomChannel(u);
-    if (!ch) { toast("Could not parse URL"); return; }
-    state.customChannels.push(ch);
-    state.channels.add(ch.id);
-    saveState(); renderChannelPicker(); renderWall();
-  };
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
-      // refresh quietly after return
-      loadAllEvents();
-    }
-  });
+  $("addCustomCh").onclick = addCustomChannel;
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) loadAllEvents(); });
 }
 
 function parseCustomChannel(u) {
@@ -821,18 +1218,25 @@ function parseCustomChannel(u) {
 }
 
 // ---------- POLLING ----------
-function startPolling() {
-  setInterval(() => { if (!document.hidden) loadAllEvents(); }, 60 * 1000);
-  setInterval(() => { if (!document.hidden) loadAllFeeds(); }, 5 * 60 * 1000);
+let _pollTimers = [];
+function startPolling() { restartPolling(); }
+function restartPolling() {
+  _pollTimers.forEach(t => clearInterval(t));
+  _pollTimers = [
+    setInterval(() => { if (!document.hidden) loadAllEvents(); }, (state.pollIntervalSecs||60)*1000),
+    setInterval(() => { if (!document.hidden) loadAllFeeds(); },  (state.pollFeedSecs||300)*1000),
+  ];
 }
 
 // ---------- BOOT ----------
 async function boot() {
   loadState();
+  if (!state.channelOrder) state.channelOrder = [...CHANNELS, ...state.customChannels].map(c => c.id);
+  if (!state.pollFeedSecs) state.pollFeedSecs = 300;
   wireUI();
+  initPanels();
   renderFeedSources();
   renderLayerSources();
-  renderChannelPicker();
   renderWall();
   initMap2D();
   if (state.mode === "3d") setMapMode("3d");
