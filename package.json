@@ -1,0 +1,16 @@
+{
+  "name": "loremacs-home",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static personal site for @loremacs. No build step; scripts here only serve the files locally.",
+  "scripts": {
+    "start": "serve . --listen 5173 --no-clipboard",
+    "dev": "serve . --listen 5173 --no-clipboard",
+    "stop": "kill-port 5173",
+    "restart": "npm run stop && npm start"
+  },
+  "devDependencies": {
+    "serve": "^14.2.3",
+    "kill-port": "^2.0.1"
+  }
+}

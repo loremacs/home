@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Newsmap — Open World Intelligence</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<style>
+  :root {
+    --bg:#05070d; --bg2:#0a0e18; --panel:#0e1320cc;
+    --border:#1b2338; --ink:#d8dae0; --muted:#7a8198;
+    --accent:#5dd6ff; --accent2:#ffb86b; --danger:#ff5c7a; --ok:#7ef2a1;
+  }
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; background:var(--bg); color:var(--ink); font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; overflow:hidden; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button, select, input { font: inherit; color: inherit; background: #121829; border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; }
+  button { cursor: pointer; }
+  button:hover { background: #1a2136; }
+  button.active { background: #1e3a5a; border-color: var(--accent); color: var(--accent); }
+  input[type=text], input[type=search] { background: #0b0f1b; }
+  input[type=checkbox] { accent-color: var(--accent); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #1f2740; border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  #app {
+    display: grid;
+    grid-template-columns: 320px 1fr 320px;
+    grid-template-rows: 44px 1fr 220px;
+    grid-template-areas: "hdr hdr hdr" "left center right" "wall wall wall";
+    height: 100vh; width: 100vw;
+  }
+  #hdr { grid-area: hdr; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--bg2); border-bottom: 1px solid var(--border); z-index: 10; }
+  #hdr .brand { font-weight: 600; letter-spacing: 0.5px; color: var(--accent); margin-right: 6px; }
+  #hdr .brand .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  #hdr input#q { width: 220px; }
+  #hdr .spacer { flex: 1; }
+  #hdr .status { color: var(--muted); font-size: 11px; }
+  #hdr .back { color: var(--muted); font-size: 18px; padding: 0 6px; }
+
+  aside { background: var(--bg2); display: flex; flex-direction: column; min-height: 0; }
+  aside#left { grid-area: left; border-right: 1px solid var(--border); }
+  aside#right { grid-area: right; border-left: 1px solid var(--border); }
+  .rail-hdr { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+  .rail-hdr .title { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+  .rail-hdr .spacer { flex: 1; }
+  .rail-body { flex: 1; overflow-y: auto; min-height: 0; }
+  .rail-foot { padding: 6px 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+
+  .sources { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 4px 6px; max-height: 140px; overflow-y: auto; }
+  .src-chip { font-size: 11px; padding: 2px 7px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; user-select: none; background: #0c1222; color: var(--muted); }
+  .src-chip.on { background: #1e3a5a; border-color: var(--accent); color: var(--accent); }
+  .src-chip.err { border-color: var(--danger); color: var(--danger); }
+
+  .feed-item { padding: 8px 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .feed-item:hover { background: #0f1526; }
+  .feed-item .meta { display: flex; gap: 6px; font-size: 10px; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .feed-item .meta .src { color: var(--accent); }
+  .feed-item .meta .age { margin-left: auto; }
+  .feed-item .title { font-weight: 500; color: var(--ink); }
+  .feed-item .excerpt { color: var(--muted); font-size: 12px; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .event-item { padding: 6px 10px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; gap: 8px; align-items: flex-start; }
+  .event-item:hover { background: #0f1526; }
+  .event-item .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .event-item .body { flex: 1; min-width: 0; }
+  .event-item .title { font-size: 12px; }
+  .event-item .sub { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+
+  main#center { grid-area: center; position: relative; background: #000; }
+  #map2d, #map3d { position: absolute; inset: 0; }
+  #map3d { display: none; background: radial-gradient(ellipse at center, #0a1430 0%, #000 70%); }
+  .legend { position: absolute; left: 10px; bottom: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 11px; backdrop-filter: blur(6px); z-index: 500; }
+  .legend .row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .attr { position: absolute; right: 10px; bottom: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 10px; color: var(--muted); z-index: 500; }
+  .leaflet-tile { filter: brightness(0.6) invert(1) contrast(1.1) hue-rotate(180deg) saturate(0.5) brightness(1.2); }
+  .leaflet-container { background: #0a1020; }
+  .leaflet-popup-content-wrapper { background: var(--bg2); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; }
+  .leaflet-popup-tip { background: var(--bg2); border: 1px solid var(--border); }
+  .leaflet-popup-content { margin: 10px 12px; font-size: 12px; }
+  .leaflet-popup-content a { color: var(--accent); }
+  .leaflet-control-zoom a { background: var(--bg2) !important; color: var(--ink) !important; border-color: var(--border) !important; }
+
+  section#wall { grid-area: wall; background: #000; border-top: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+  .wall-hdr { padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; gap: 6px; align-items: center; }
+  .wall-hdr .title { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+  .wall-hdr .spacer { flex: 1; }
+  .wall-grid { flex: 1; display: grid; gap: 4px; padding: 4px; background: #000; min-height: 0; }
+  .wall-grid.g1 { grid-template: 1fr / 1fr; }
+  .wall-grid.g2 { grid-template: 1fr / 1fr 1fr; }
+  .wall-grid.g4 { grid-template: 1fr 1fr / 1fr 1fr; }
+  .wall-grid.g6 { grid-template: 1fr 1fr / 1fr 1fr 1fr; }
+  .wall-grid.g9 { grid-template: 1fr 1fr 1fr / 1fr 1fr 1fr; }
+  .wall-tile { position: relative; background: #0a0e18; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; min-height: 0; }
+  .wall-tile iframe, .wall-tile video { width: 100%; height: 100%; display: block; border: 0; background: #000; }
+  .wall-tile .label { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.7); padding: 2px 6px; font-size: 10px; border-radius: 3px; color: var(--ink); pointer-events: none; }
+  .wall-tile .close { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); border: 0; color: var(--ink); padding: 2px 6px; font-size: 10px; border-radius: 3px; cursor: pointer; }
+  .wall-tile .close:hover { background: var(--danger); }
+
+  .channel-picker { display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 10px; border-bottom: 1px solid var(--border); background: #0a0e18; max-height: 80px; overflow-y: auto; }
+  .ch-chip { font-size: 11px; padding: 2px 7px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; user-select: none; background: #0c1222; color: var(--muted); }
+  .ch-chip.on { background: #3a1e5a; border-color: var(--accent2); color: var(--accent2); }
+
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; font-size: 12px; z-index: 9999; pointer-events: none; opacity: 0; transition: opacity .2s; }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 900px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 44px 40vh 1fr 160px; grid-template-areas: "hdr" "center" "left" "wall"; }
+    aside#right { display: none; }
+    #hdr input#q { width: 120px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hdr">
+    <a href="../../index.html" class="back" title="Back to atlas">&larr;</a>
+    <div class="brand"><span class="dot"></span>NEWSMAP</div>
+    <input type="search" id="q" placeholder="Search news..." autocomplete="off">
+    <select id="timeFilter" title="Time window">
+      <option value="1">Last 1 h</option>
+      <option value="6" selected>Last 6 h</option>
+      <option value="24">Last 24 h</option>
+      <option value="168">Last 7 d</option>
+    </select>
+    <button id="btn2d" class="active" title="2D map">2D</button>
+    <button id="btn3d" title="3D globe">3D</button>
+    <div class="spacer"></div>
+    <span class="status" id="status">booting...</span>
+    <button id="btnRefresh" title="Refresh all">&#x21bb;</button>
+  </header>
+
+  <aside id="left">
+    <div class="rail-hdr">
+      <span class="title">News</span><span class="spacer"></span>
+      <button id="selAllFeeds" title="Toggle all">all</button>
+    </div>
+    <div class="sources" id="feedSources"></div>
+    <div class="rail-body" id="feedList"></div>
+    <div class="rail-foot" id="feedFoot">0 items</div>
+  </aside>
+
+  <main id="center">
+    <div id="map2d"></div>
+    <div id="map3d"></div>
+    <div class="legend" id="legend">
+      <div class="row"><span class="dot" style="background:#ff5c7a"></span>Earthquake</div>
+      <div class="row"><span class="dot" style="background:#ffb86b"></span>Wildfire / EONET</div>
+      <div class="row"><span class="dot" style="background:#5dd6ff"></span>Weather alert</div>
+      <div class="row"><span class="dot" style="background:#7ef2a1"></span>ISS</div>
+      <div class="row"><span class="dot" style="background:#b08bff"></span>Aircraft</div>
+    </div>
+    <div class="attr" id="attr">&copy; OSM &middot; USGS &middot; NASA EONET &middot; NOAA &middot; OpenSky</div>
+  </main>
+
+  <aside id="right">
+    <div class="rail-hdr">
+      <span class="title">Events</span><span class="spacer"></span>
+      <button id="selAllLayers" title="Toggle all">all</button>
+    </div>
+    <div class="sources" id="layerSources"></div>
+    <div class="rail-body" id="eventList"></div>
+    <div class="rail-foot" id="eventFoot">0 events</div>
+  </aside>
+
+  <section id="wall">
+    <div class="wall-hdr">
+      <span class="title">Live channels</span>
+      <span class="spacer"></span>
+      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" id="autoplay" checked> autoplay muted
+      </label>
+      <button data-layout="g1">1</button>
+      <button data-layout="g2">2</button>
+      <button data-layout="g4" class="active">4</button>
+      <button data-layout="g6">6</button>
+      <button data-layout="g9">9</button>
+      <button id="addCustomCh" title="Add YouTube URL or HLS stream">+</button>
+    </div>
+    <div class="channel-picker" id="channelPicker"></div>
+    <div class="wall-grid g4" id="wallGrid"></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/globe.gl"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13"></script>
+<script id="main-script">
+"use strict";
+
+/*
+ * NEWSMAP - open world intelligence, no signup, no paywall.
+ * Single-file, CDN libs only. Everything runs in the browser.
+ * Sources: OSM, USGS, NASA EONET, NOAA weather.gov, open-notify/wheretheiss,
+ * OpenSky, Reddit, HN Algolia, Wikinews, GDELT, RSS via allorigins+rss2json,
+ * YouTube live embeds.
+ */
+
+// ---------- CATALOGS ----------
+const FEEDS = [
+  { id:"bbc",        name:"BBC",         kind:"rss", url:"https://feeds.bbci.co.uk/news/world/rss.xml" },
+  { id:"guardian",   name:"Guardian",    kind:"rss", url:"https://www.theguardian.com/world/rss" },
+  { id:"aljazeera",  name:"Al Jazeera",  kind:"rss", url:"https://www.aljazeera.com/xml/rss/all.xml" },
+  { id:"dw",         name:"DW",          kind:"rss", url:"https://rss.dw.com/rdf/rss-en-all" },
+  { id:"france24",   name:"France24",    kind:"rss", url:"https://www.france24.com/en/rss" },
+  { id:"npr",        name:"NPR",         kind:"rss", url:"https://feeds.npr.org/1001/rss.xml" },
+  { id:"cbc",        name:"CBC",         kind:"rss", url:"https://rss.cbc.ca/lineup/topstories.xml" },
+  { id:"nhk",        name:"NHK",         kind:"rss", url:"https://www3.nhk.or.jp/nhkworld/en/news/feeds/" },
+  { id:"apnews",     name:"AP",          kind:"rss", url:"https://apnews.com/index.rss" },
+  { id:"reddit_wn",  name:"r/worldnews", kind:"reddit", url:"https://www.reddit.com/r/worldnews/.json?limit=25" },
+  { id:"reddit_n",   name:"r/news",      kind:"reddit", url:"https://www.reddit.com/r/news/.json?limit=25" },
+  { id:"hn",         name:"HN",          kind:"hn",     url:"https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=25" },
+  { id:"wikinews",   name:"Wikinews",    kind:"wikinews", url:"https://en.wikinews.org/w/api.php?action=query&list=recentchanges&rcnamespace=0&rcshow=!minor&rctype=new&rclimit=25&format=json&origin=*" },
+  { id:"gdelt",      name:"GDELT",       kind:"gdelt",  url:"https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:eng&mode=artlist&maxrecords=30&format=json&timespan=6h&sort=datedesc" },
+];
+
+const CHANNELS = [
+  { id:"bbcnews",   name:"BBC News",    yt:"UC16niRr50-MSBwiO3YDb3RA" },
+  { id:"aje",       name:"Al Jazeera",  yt:"UCNye-wNBqNL5ZzHSJj3l8Bg" },
+  { id:"dwnews",    name:"DW News",     yt:"UCknLrEdhRCp1aegoMqRaCZg" },
+  { id:"france24",  name:"France 24",   yt:"UCQfwfsi5VrQ8yKZ-UWmAEFg" },
+  { id:"nhk",       name:"NHK World",   yt:"UCSPEjw8F2nQDtmUKPFNF7_A" },
+  { id:"sky",       name:"Sky News",    yt:"UCoMdktPbSTixAyNGwb-UYkQ" },
+  { id:"bloomberg", name:"Bloomberg",   yt:"UCIALMKvObZNtJ6AmdCLP7Lg" },
+  { id:"cna",       name:"CNA",         yt:"UCFr3sz2t3bDp6Cux08B93KQ" },
+  { id:"nasa",      name:"NASA",        yt:"UCLA_DiR1FfKNvjuUpBHmylQ" },
+  { id:"euronews",  name:"Euronews",    yt:"UCSrZ1UkjJnG9WhrrcbxZApQ" },
+  { id:"abcau",     name:"ABC AU",      yt:"UCVgO39Bk5sMo66-6o6Spn6Q" },
+  { id:"cbcnews",   name:"CBC News",    yt:"UCuFFtHWoLl5fauMMD5Ww2jA" },
+];
+
+const LAYERS = [
+  { id:"quakes",   name:"Earthquakes", color:"#ff5c7a", on:true  },
+  { id:"eonet",    name:"Nat. events", color:"#ffb86b", on:true  },
+  { id:"alerts",   name:"US alerts",   color:"#5dd6ff", on:false },
+  { id:"iss",      name:"ISS",         color:"#7ef2a1", on:true  },
+  { id:"aircraft", name:"Aircraft",    color:"#b08bff", on:false },
+];
+
+const STORE_KEY = "newsmap.state.v1";
+const CACHE_KEY = "newsmap.cache.v1";
+const CACHE_TTL = 5 * 60 * 1000;
+
+// ---------- STATE ----------
+const state = {
+  feeds:    new Set(FEEDS.map(f => f.id)),
+  layers:   new Set(LAYERS.filter(l => l.on).map(l => l.id)),
+  channels: new Set(["bbcnews","aje","dwnews","france24"]),
+  news: [], events: [],
+  feedErr: new Set(),
+  mode: "2d",
+  timeHours: 6,
+  query: "",
+  map: null, globe: null, layerGroups: {},
+  autoplay: true,
+  customChannels: [],
+};
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (Array.isArray(s.feeds)) state.feeds = new Set(s.feeds);
+    if (Array.isArray(s.layers)) state.layers = new Set(s.layers);
+    if (Array.isArray(s.channels) && s.channels.length) state.channels = new Set(s.channels);
+    if (Array.isArray(s.customChannels)) state.customChannels = s.customChannels;
+    if (typeof s.autoplay === "boolean") state.autoplay = s.autoplay;
+    if (s.timeHours) state.timeHours = s.timeHours;
+    if (s.mode) state.mode = s.mode;
+  } catch(e) {}
+}
+function saveState() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      feeds:[...state.feeds], layers:[...state.layers],
+      channels:[...state.channels], customChannels: state.customChannels,
+      autoplay: state.autoplay, timeHours: state.timeHours, mode: state.mode,
+    }));
+  } catch(e) {}
+}
+
+// ---------- CACHE ----------
+function cacheGet(k) {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    const e = c[k];
+    if (!e || Date.now() - e.t > CACHE_TTL) return null;
+    return e.d;
+  } catch(e) { return null; }
+}
+function cacheSet(k, d) {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    const c = raw ? JSON.parse(raw) : {};
+    c[k] = { t: Date.now(), d };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(c));
+  } catch(e) {
+    // Over quota - clear cache and retry once.
+    try { localStorage.removeItem(CACHE_KEY); } catch(_) {}
+  }
+}
+
+// ---------- HELPERS ----------
+const $ = id => document.getElementById(id);
+function ago(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s/60) + "m";
+  if (s < 86400) return Math.floor(s/3600) + "h";
+  return Math.floor(s/86400) + "d";
+}
+function setStatus(t) { $("status").textContent = t; }
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._h); toast._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function esc(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+}
+function stripHtml(s) { const d = document.createElement("div"); d.innerHTML = s || ""; return (d.textContent || "").trim(); }
+
+async function fetchJSON(url) {
+  const r = await fetch(url, { mode:"cors" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+async function fetchText(url) {
+  const r = await fetch(url, { mode:"cors" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.text();
+}
+
+// ---------- FEED FETCHERS ----------
+async function fetchRSS(feed) {
+  const parse = (xml) => {
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
+    if (doc.querySelector("parsererror")) throw new Error("parse error");
+    const items = [...doc.querySelectorAll("item, entry")];
+    return items.map(it => {
+      const title = it.querySelector("title")?.textContent?.trim() || "";
+      const linkEl = it.querySelector("link");
+      const link = linkEl?.getAttribute("href")
+        || linkEl?.textContent?.trim()
+        || it.querySelector("guid")?.textContent?.trim()
+        || "#";
+      const desc = stripHtml(it.querySelector("description, summary, content")?.textContent || "");
+      const dateS = it.querySelector("pubDate, updated, published")?.textContent;
+      const ts = dateS ? new Date(dateS).getTime() : Date.now();
+      return { id: feed.id+":"+link, src: feed.id, srcName: feed.name, title, url: link, excerpt: desc, ts: isNaN(ts) ? Date.now() : ts };
+    });
+  };
+  try { return parse(await fetchText(feed.url)); } catch(e) {}
+  try {
+    const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(feed.url);
+    return parse(await fetchText(proxied));
+  } catch(e) {}
+  const r = await fetchJSON("https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(feed.url));
+  if (r.status !== "ok") throw new Error(r.message || "rss2json failed");
+  return (r.items || []).map(it => ({
+    id: feed.id+":"+it.link, src: feed.id, srcName: feed.name,
+    title: it.title, url: it.link, excerpt: stripHtml(it.description || ""),
+    ts: it.pubDate ? new Date(it.pubDate).getTime() : Date.now(),
+  }));
+}
+
+async function fetchReddit(feed) {
+  const r = await fetchJSON(feed.url);
+  return (r.data?.children || []).map(c => {
+    const p = c.data;
+    return {
+      id: feed.id+":"+p.id, src: feed.id, srcName: feed.name,
+      title: p.title,
+      url: p.url_overridden_by_dest || ("https://reddit.com"+p.permalink),
+      excerpt: p.selftext ? p.selftext.slice(0, 200) : (p.domain || ""),
+      ts: (p.created_utc || 0) * 1000,
+    };
+  });
+}
+async function fetchHN(feed) {
+  const r = await fetchJSON(feed.url);
+  return (r.hits || []).map(h => ({
+    id: feed.id+":"+h.objectID, src: feed.id, srcName: feed.name,
+    title: h.title || h.story_title,
+    url: h.url || ("https://news.ycombinator.com/item?id="+h.objectID),
+    excerpt: (h.story_text && stripHtml(h.story_text).slice(0,200)) || "",
+    ts: h.created_at_i * 1000,
+  }));
+}
+async function fetchWikinews(feed) {
+  const r = await fetchJSON(feed.url);
+  return (r.query?.recentchanges || []).map(c => ({
+    id: feed.id+":"+c.rcid, src: feed.id, srcName: feed.name,
+    title: c.title,
+    url: "https://en.wikinews.org/wiki/" + encodeURIComponent(String(c.title).replace(/ /g,"_")),
+    excerpt: c.comment || "",
+    ts: new Date(c.timestamp).getTime(),
+  }));
+}
+async function fetchGDELT(feed) {
+  const r = await fetchJSON(feed.url);
+  return (r.articles || []).map((a, i) => ({
+    id: feed.id+":"+(a.url || i), src: feed.id, srcName: feed.name,
+    title: a.title, url: a.url, excerpt: a.domain || "",
+    ts: a.seendate ? Date.parse(a.seendate.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, "$1-$2-$3T$4:$5:$6Z")) : Date.now(),
+  }));
+}
+async function fetchFeed(feed) {
+  const cached = cacheGet("feed:"+feed.id);
+  if (cached) return cached;
+  let items = [];
+  if (feed.kind === "rss") items = await fetchRSS(feed);
+  else if (feed.kind === "reddit") items = await fetchReddit(feed);
+  else if (feed.kind === "hn") items = await fetchHN(feed);
+  else if (feed.kind === "wikinews") items = await fetchWikinews(feed);
+  else if (feed.kind === "gdelt") items = await fetchGDELT(feed);
+  cacheSet("feed:"+feed.id, items);
+  return items;
+}
+async function loadAllFeeds() {
+  setStatus("loading feeds...");
+  const results = await Promise.allSettled(FEEDS.map(async f => {
+    try { const items = await fetchFeed(f); state.feedErr.delete(f.id); return items; }
+    catch(e) { console.warn("feed", f.id, e); state.feedErr.add(f.id); return []; }
+  }));
+  state.news = results.flatMap(r => r.status === "fulfilled" ? r.value : []);
+  state.news.sort((a,b) => b.ts - a.ts);
+  renderFeedSources(); renderNews();
+  setStatus("feeds: " + state.news.length + " items");
+}
+
+// ---------- EVENT FETCHERS ----------
+async function loadQuakes() {
+  try {
+    const r = await fetchJSON("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson");
+    return (r.features || []).map(f => ({
+      id:"q:"+f.id, layer:"quakes", title: f.properties.title || "Quake",
+      ts: f.properties.time, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0],
+      mag: f.properties.mag, url: f.properties.url,
+    }));
+  } catch(e) { console.warn("quakes",e); return []; }
+}
+async function loadEONET() {
+  try {
+    const r = await fetchJSON("https://eonet.gsfc.nasa.gov/api/v3/events?days=7&status=open");
+    const out = [];
+    for (const e of (r.events || [])) {
+      const g = e.geometry?.[e.geometry.length-1];
+      if (!g || !Array.isArray(g.coordinates)) continue;
+      const [lng, lat] = g.coordinates;
+      if (typeof lat !== "number" || typeof lng !== "number") continue;
+      out.push({
+        id:"e:"+e.id, layer:"eonet", title: e.title,
+        ts: Date.parse(g.date || e.geometry[0].date),
+        lat, lng, cat: e.categories?.[0]?.title || "Event",
+        url: e.sources?.[0]?.url || e.link,
+      });
+    }
+    return out;
+  } catch(e) { console.warn("eonet",e); return []; }
+}
+async function loadAlerts() {
+  try {
+    const r = await fetchJSON("https://api.weather.gov/alerts/active?status=actual&message_type=alert");
+    return (r.features || []).slice(0, 200).map(f => {
+      const g = f.geometry;
+      let lat, lng;
+      if (g && g.type === "Point") { [lng, lat] = g.coordinates; }
+      else if (g && g.type === "Polygon") {
+        const c = g.coordinates[0];
+        lat = c.reduce((s,p)=>s+p[1],0)/c.length;
+        lng = c.reduce((s,p)=>s+p[0],0)/c.length;
+      } else return null;
+      return {
+        id:"a:"+f.id, layer:"alerts",
+        title: f.properties.event + " - " + (f.properties.areaDesc||"").slice(0,60),
+        ts: Date.parse(f.properties.sent), lat, lng,
+        sev: f.properties.severity, url: f.properties.uri || null,
+      };
+    }).filter(Boolean);
+  } catch(e) { console.warn("alerts",e); return []; }
+}
+async function loadISS() {
+  try {
+    const r = await fetchJSON("https://api.wheretheiss.at/v1/satellites/25544");
+    return [{
+      id:"iss:now", layer:"iss", title:"ISS position",
+      ts: r.timestamp*1000, lat: r.latitude, lng: r.longitude,
+      url:"https://spotthestation.nasa.gov/",
+    }];
+  } catch(e) { console.warn("iss",e); return []; }
+}
+async function loadAircraft() {
+  try {
+    const r = await fetchJSON("https://opensky-network.org/api/states/all");
+    const states = (r.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 300);
+    return states.map(s => ({
+      id:"ac:"+s[0], layer:"aircraft",
+      title: ((s[1]||s[0])||"").trim() + " · " + (s[2]||"?"),
+      ts: (r.time || Date.now()/1000)*1000,
+      lat: s[6], lng: s[5], alt: s[7], vel: s[9],
+      url: "https://opensky-network.org/aircraft-profile?icao24="+s[0],
+    }));
+  } catch(e) { console.warn("aircraft",e); return []; }
+}
+async function loadAllEvents() {
+  setStatus("loading events...");
+  const tasks = [
+    state.layers.has("quakes")   ? loadQuakes()   : Promise.resolve([]),
+    state.layers.has("eonet")    ? loadEONET()    : Promise.resolve([]),
+    state.layers.has("alerts")   ? loadAlerts()   : Promise.resolve([]),
+    state.layers.has("iss")      ? loadISS()      : Promise.resolve([]),
+    state.layers.has("aircraft") ? loadAircraft() : Promise.resolve([]),
+  ];
+  const all = (await Promise.all(tasks)).flat();
+  state.events = all.sort((a,b) => b.ts - a.ts);
+  renderEvents(); renderMapLayers();
+  setStatus("events: " + state.events.length + " markers");
+}
+
+// ---------- MAP (2D) ----------
+function initMap2D() {
+  state.map = L.map("map2d", { zoomControl:true, worldCopyJump:true, preferCanvas:true }).setView([20,10], 2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "" }).addTo(state.map);
+  for (const l of LAYERS) state.layerGroups[l.id] = L.layerGroup().addTo(state.map);
+}
+
+function markerFor(evt) {
+  const layer = LAYERS.find(l => l.id === evt.layer);
+  const color = layer?.color || "#fff";
+  const r = evt.layer === "quakes" ? Math.max(3, Math.min(14, (evt.mag||1)*2.2)) : 5;
+  const m = L.circleMarker([evt.lat, evt.lng], {
+    radius: r, color, fillColor: color, fillOpacity: 0.6, weight: 1,
+  });
+  const when = new Date(evt.ts).toISOString().replace("T"," ").slice(0,16);
+  const extra = evt.mag != null ? `<br>M ${evt.mag.toFixed(1)}` : (evt.cat ? `<br>${esc(evt.cat)}` : "");
+  m.bindPopup(`<b>${esc(evt.title)}</b>${extra}<br><span style="color:#7a8198">${when} UTC</span>${evt.url?`<br><a href="${evt.url}" target="_blank" rel="noopener">source &rarr;</a>`:""}`);
+  return m;
+}
+
+function renderMapLayers() {
+  if (!state.map) return;
+  for (const l of LAYERS) state.layerGroups[l.id].clearLayers();
+  const cutoff = Date.now() - state.timeHours*3600*1000;
+  for (const evt of state.events) {
+    if (!state.layers.has(evt.layer)) continue;
+    if (evt.ts < cutoff && evt.layer !== "iss" && evt.layer !== "aircraft") continue;
+    markerFor(evt).addTo(state.layerGroups[evt.layer]);
+  }
+  if (state.mode === "3d") renderGlobePoints();
+}
+
+// ---------- MAP (3D globe) ----------
+function initGlobe3D() {
+  if (state.globe || typeof Globe === "undefined") return;
+  const el = $("map3d");
+  state.globe = Globe()(el)
+    .globeImageUrl("https://unpkg.com/three-globe/example/img/earth-night.jpg")
+    .bumpImageUrl("https://unpkg.com/three-globe/example/img/earth-topology.png")
+    .backgroundColor("rgba(0,0,0,0)")
+    .atmosphereColor("#5dd6ff")
+    .atmosphereAltitude(0.18)
+    .pointAltitude(0.01)
+    .pointRadius(0.4)
+    .pointColor(p => p.color)
+    .pointLabel(p => `<div style="background:#0e1320;padding:4px 8px;border:1px solid #1b2338;border-radius:4px;color:#d8dae0">${esc(p.title)}</div>`)
+    .onPointClick(p => { if (p.url) window.open(p.url, "_blank", "noopener"); });
+  // fit size
+  const resize = () => { state.globe.width(el.clientWidth).height(el.clientHeight); };
+  resize();
+  new ResizeObserver(resize).observe(el);
+  // auto-rotate
+  state.globe.controls().autoRotate = true;
+  state.globe.controls().autoRotateSpeed = 0.3;
+}
+function renderGlobePoints() {
+  if (!state.globe) return;
+  const cutoff = Date.now() - state.timeHours*3600*1000;
+  const pts = [];
+  for (const evt of state.events) {
+    if (!state.layers.has(evt.layer)) continue;
+    if (evt.ts < cutoff && evt.layer !== "iss" && evt.layer !== "aircraft") continue;
+    const layer = LAYERS.find(l => l.id === evt.layer);
+    pts.push({ lat: evt.lat, lng: evt.lng, color: layer?.color || "#fff", title: evt.title, url: evt.url });
+  }
+  state.globe.pointsData(pts);
+}
+function setMapMode(m) {
+  state.mode = m;
+  $("map2d").style.display = m === "2d" ? "block" : "none";
+  $("map3d").style.display = m === "3d" ? "block" : "none";
+  $("btn2d").classList.toggle("active", m === "2d");
+  $("btn3d").classList.toggle("active", m === "3d");
+  if (m === "3d") { initGlobe3D(); renderGlobePoints(); }
+  else if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+  saveState();
+}
+
+// ---------- RENDER: feeds + events panels ----------
+function renderFeedSources() {
+  const host = $("feedSources");
+  host.innerHTML = "";
+  for (const f of FEEDS) {
+    const chip = document.createElement("div");
+    chip.className = "src-chip" + (state.feeds.has(f.id) ? " on" : "") + (state.feedErr.has(f.id) ? " err" : "");
+    chip.textContent = f.name;
+    chip.title = state.feedErr.has(f.id) ? "Feed errored - click to retry" : f.url;
+    chip.onclick = () => {
+      if (state.feeds.has(f.id)) state.feeds.delete(f.id);
+      else state.feeds.add(f.id);
+      saveState(); renderFeedSources(); renderNews();
+    };
+    host.appendChild(chip);
+  }
+}
+function renderNews() {
+  const host = $("feedList");
+  const cutoff = Date.now() - state.timeHours*3600*1000;
+  const q = state.query.toLowerCase();
+  const items = state.news.filter(n =>
+    state.feeds.has(n.src) && n.ts >= cutoff &&
+    (!q || n.title.toLowerCase().includes(q) || (n.excerpt||"").toLowerCase().includes(q))
+  );
+  host.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (const n of items.slice(0, 250)) {
+    const div = document.createElement("div");
+    div.className = "feed-item";
+    div.innerHTML = `
+      <div class="meta"><span class="src">${esc(n.srcName)}</span><span class="age">${ago(n.ts)}</span></div>
+      <div class="title">${esc(n.title)}</div>
+      ${n.excerpt ? `<div class="excerpt">${esc(n.excerpt)}</div>` : ""}
+    `;
+    div.onclick = () => { if (n.url && n.url !== "#") window.open(n.url, "_blank", "noopener"); };
+    frag.appendChild(div);
+  }
+  host.appendChild(frag);
+  $("feedFoot").textContent = items.length + " items · " + state.feeds.size + "/" + FEEDS.length + " sources";
+}
+function renderLayerSources() {
+  const host = $("layerSources");
+  host.innerHTML = "";
+  for (const l of LAYERS) {
+    const chip = document.createElement("div");
+    chip.className = "src-chip" + (state.layers.has(l.id) ? " on" : "");
+    chip.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${l.color};margin-right:4px;vertical-align:middle"></span>${l.name}`;
+    chip.onclick = async () => {
+      if (state.layers.has(l.id)) state.layers.delete(l.id);
+      else state.layers.add(l.id);
+      saveState(); renderLayerSources();
+      await loadAllEvents();
+    };
+    host.appendChild(chip);
+  }
+}
+function renderEvents() {
+  const host = $("eventList");
+  const cutoff = Date.now() - state.timeHours*3600*1000;
+  const items = state.events.filter(e =>
+    state.layers.has(e.layer) && (e.ts >= cutoff || e.layer === "iss" || e.layer === "aircraft")
+  );
+  host.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (const e of items.slice(0, 300)) {
+    const layer = LAYERS.find(l => l.id === e.layer);
+    const div = document.createElement("div");
+    div.className = "event-item";
+    div.innerHTML = `
+      <span class="dot" style="background:${layer?.color||"#fff"}"></span>
+      <div class="body">
+        <div class="title">${esc(e.title)}</div>
+        <div class="sub">${layer?.name||e.layer} · ${ago(e.ts)} ago</div>
+      </div>
+    `;
+    div.onclick = () => {
+      if (state.mode === "2d" && state.map) state.map.flyTo([e.lat, e.lng], Math.max(state.map.getZoom(), 5), { duration: 0.8 });
+      else if (state.mode === "3d" && state.globe) state.globe.pointOfView({ lat: e.lat, lng: e.lng, altitude: 1.2 }, 800);
+    };
+    frag.appendChild(div);
+  }
+  host.appendChild(frag);
+  $("eventFoot").textContent = items.length + " events";
+}
+
+// ---------- VIDEO WALL ----------
+function ytEmbed(channelId) {
+  const mute = state.autoplay ? "1" : "1"; // always mute
+  const auto = state.autoplay ? "1" : "0";
+  return `https://www.youtube-nocookie.com/embed/live_stream?channel=${channelId}&autoplay=${auto}&mute=${mute}`;
+}
+function renderChannelPicker() {
+  const host = $("channelPicker");
+  host.innerHTML = "";
+  const all = [...CHANNELS, ...state.customChannels];
+  for (const c of all) {
+    const chip = document.createElement("div");
+    chip.className = "ch-chip" + (state.channels.has(c.id) ? " on" : "");
+    chip.textContent = c.name;
+    chip.onclick = () => {
+      if (state.channels.has(c.id)) state.channels.delete(c.id);
+      else state.channels.add(c.id);
+      saveState(); renderChannelPicker(); renderWall();
+    };
+    host.appendChild(chip);
+  }
+}
+function renderWall() {
+  const host = $("wallGrid");
+  host.innerHTML = "";
+  const all = [...CHANNELS, ...state.customChannels];
+  const layout = [...host.classList].find(c => c.startsWith("g")) || "g4";
+  const cap = { g1:1, g2:2, g4:4, g6:6, g9:9 }[layout] || 4;
+  const chosen = all.filter(c => state.channels.has(c.id)).slice(0, cap);
+  for (const c of chosen) {
+    const tile = document.createElement("div");
+    tile.className = "wall-tile";
+    if (c.yt) {
+      tile.innerHTML = `
+        <iframe src="${ytEmbed(c.yt)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+        <div class="label">${esc(c.name)}</div>
+        <button class="close" data-ch="${c.id}">&times;</button>
+      `;
+    } else if (c.hls) {
+      const vid = document.createElement("video");
+      vid.controls = true; vid.muted = state.autoplay; vid.autoplay = state.autoplay; vid.playsInline = true;
+      if (window.Hls && Hls.isSupported()) {
+        const hls = new Hls(); hls.loadSource(c.hls); hls.attachMedia(vid);
+      } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
+        vid.src = c.hls;
+      }
+      tile.appendChild(vid);
+      const label = document.createElement("div"); label.className = "label"; label.textContent = c.name; tile.appendChild(label);
+      const x = document.createElement("button"); x.className = "close"; x.textContent = "×"; x.dataset.ch = c.id; tile.appendChild(x);
+    } else if (c.url) {
+      tile.innerHTML = `<iframe src="${esc(c.url)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+        <div class="label">${esc(c.name)}</div>
+        <button class="close" data-ch="${c.id}">&times;</button>`;
+    }
+    host.appendChild(tile);
+  }
+  host.onclick = (e) => {
+    const b = e.target.closest(".close");
+    if (!b) return;
+    state.channels.delete(b.dataset.ch);
+    saveState(); renderChannelPicker(); renderWall();
+  };
+}
+function setWallLayout(cls) {
+  const g = $("wallGrid");
+  g.classList.remove("g1","g2","g4","g6","g9");
+  g.classList.add(cls);
+  document.querySelectorAll(".wall-hdr [data-layout]").forEach(b => b.classList.toggle("active", b.dataset.layout === cls));
+  renderWall();
+}
+
+// ---------- WIRING ----------
+function wireUI() {
+  $("btn2d").onclick = () => setMapMode("2d");
+  $("btn3d").onclick = () => setMapMode("3d");
+  $("btnRefresh").onclick = async () => {
+    try { localStorage.removeItem(CACHE_KEY); } catch(e){}
+    await Promise.all([loadAllFeeds(), loadAllEvents()]);
+    toast("Refreshed");
+  };
+  $("q").oninput = (e) => { state.query = e.target.value; renderNews(); };
+  $("timeFilter").value = String(state.timeHours);
+  $("timeFilter").onchange = (e) => { state.timeHours = +e.target.value; saveState(); renderNews(); renderEvents(); renderMapLayers(); };
+  $("selAllFeeds").onclick = () => {
+    if (state.feeds.size === FEEDS.length) state.feeds.clear();
+    else state.feeds = new Set(FEEDS.map(f => f.id));
+    saveState(); renderFeedSources(); renderNews();
+  };
+  $("selAllLayers").onclick = async () => {
+    if (state.layers.size === LAYERS.length) state.layers.clear();
+    else state.layers = new Set(LAYERS.map(l => l.id));
+    saveState(); renderLayerSources(); await loadAllEvents();
+  };
+  $("autoplay").checked = state.autoplay;
+  $("autoplay").onchange = (e) => { state.autoplay = e.target.checked; saveState(); renderWall(); };
+  document.querySelectorAll(".wall-hdr [data-layout]").forEach(b => {
+    b.onclick = () => setWallLayout(b.dataset.layout);
+  });
+  $("addCustomCh").onclick = () => {
+    const u = prompt("Paste a YouTube live URL, YouTube channel URL, or .m3u8 HLS stream URL:");
+    if (!u) return;
+    const ch = parseCustomChannel(u);
+    if (!ch) { toast("Could not parse URL"); return; }
+    state.customChannels.push(ch);
+    state.channels.add(ch.id);
+    saveState(); renderChannelPicker(); renderWall();
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      // refresh quietly after return
+      loadAllEvents();
+    }
+  });
+}
+
+function parseCustomChannel(u) {
+  try {
+    const id = "custom:" + Math.random().toString(36).slice(2, 8);
+    if (/\.m3u8(\?|$)/i.test(u)) return { id, name: "HLS stream", hls: u };
+    // youtube channel url
+    let m = u.match(/youtube\.com\/channel\/([\w-]+)/);
+    if (m) return { id, name: "YT channel", yt: m[1] };
+    // youtube live/video url - embed as video
+    m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|live\/))([\w-]{11})/);
+    if (m) return { id, name: "YT video", url: "https://www.youtube-nocookie.com/embed/" + m[1] + "?autoplay=1&mute=1" };
+    // fall back: raw embed
+    if (/^https?:\/\//.test(u)) return { id, name: "Stream", url: u };
+    return null;
+  } catch(e) { return null; }
+}
+
+// ---------- POLLING ----------
+function startPolling() {
+  setInterval(() => { if (!document.hidden) loadAllEvents(); }, 60 * 1000);
+  setInterval(() => { if (!document.hidden) loadAllFeeds(); }, 5 * 60 * 1000);
+}
+
+// ---------- BOOT ----------
+async function boot() {
+  loadState();
+  wireUI();
+  renderFeedSources();
+  renderLayerSources();
+  renderChannelPicker();
+  renderWall();
+  initMap2D();
+  if (state.mode === "3d") setMapMode("3d");
+  await Promise.all([loadAllFeeds(), loadAllEvents()]);
+  startPolling();
+}
+boot().catch(e => { console.error(e); setStatus("boot error: " + e.message); });
+</script>
+</body>
+</html>

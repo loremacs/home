@@ -44,8 +44,10 @@ key to the `loremacs` account or use a host-alias in `~/.ssh/config`.
     │       └── form.html
     ├── emergent-lab/
     │   └── index.html           editable agent swarm + self-healing runtime
-    └── curtain-lens/
-        └── index.html           top-down game POC (40KB, self-contained)
+    ├── curtain-lens/
+    │   └── index.html           top-down game POC (40KB, self-contained)
+    └── newsmap/
+        └── index.html           open world-intel: map + news feeds + events + live channels
 ```
 
 ---
@@ -163,7 +165,56 @@ functions. On Apply, we:
 This is a demo of "self-testing, self-healing" more than a serious
 tool. Don't over-engineer it.
 
-### 3.4 Curtain Lens — `projects/curtain-lens/`
+### 3.4 Newsmap — `projects/newsmap/`
+
+One-screen open-data world dashboard. CSS grid layout with five regions:
+header bar, left news rail, center map (2D Leaflet / 3D globe.gl toggle),
+right events rail, bottom video wall.
+
+Everything runs client-side. The whole design is "no signup, no paywall"
+— if a source requires an API key, it's deliberately excluded. CDN deps
+only: Leaflet, globe.gl, hls.js.
+
+**Data sources (all keyless):**
+- OpenStreetMap raster tiles (dark-inverted via CSS filter)
+- USGS earthquake GeoJSON (all_day)
+- NASA EONET v3 open events (7d window)
+- NOAA weather.gov active alerts (US only)
+- `api.wheretheiss.at` ISS position
+- OpenSky Network `/states/all` for aircraft (rate-limited, off by default)
+- Reddit JSON (r/worldnews, r/news), HN Algolia, Wikinews MediaWiki API,
+  GDELT DOC 2.0
+- RSS via a three-tier fallback: direct → `api.allorigins.win/raw` →
+  `api.rss2json.com`. The DOM parser runs client-side on the first two.
+- YouTube live channel embeds via `/embed/live_stream?channel=ID` so
+  we never have to track individual video IDs.
+
+**Key design choices:**
+- All feed/event results cached in `localStorage` under
+  `newsmap.cache.v1` with a 5-minute TTL. User preferences (enabled
+  feeds, layers, channels, autoplay, time window, 2D/3D mode) persist
+  separately under `newsmap.state.v1`.
+- Polite polling: events every 60s, feeds every 5m, paused while the
+  tab is hidden.
+- The 2D map auto-dims OSM tiles with a CSS filter to match the dark
+  theme (no per-tile fetch of a dark basemap, which would need a key
+  or a paid CDN).
+- The video wall uses `youtube-nocookie.com` embeds for privacy and
+  defaults to muted autoplay so browsers don't block playback.
+- User can paste a YouTube URL, channel URL, or `.m3u8` HLS stream
+  into the `+` button to add custom tiles.
+
+**Known gotchas:**
+- YouTube's channel-based live embed occasionally returns a "no live
+  stream" page if a channel isn't currently streaming. That's a
+  YouTube-side behavior; the tile just shows their fallback. Not a bug.
+- OpenSky rate-limits anonymous callers harshly; the Aircraft layer
+  is off by default for that reason.
+- Several RSS feeds send no CORS header; the fallback chain handles
+  them via allorigins, which itself can be flaky. If it goes down,
+  individual source chips flip red and can be re-clicked to retry.
+
+### 3.5 Curtain Lens — `projects/curtain-lens/`
 
 A top-down tile-based POC I preserved from an earlier project. It is
 ~40KB of self-contained HTML with no external assets. The curtain-lens

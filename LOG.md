@@ -17,6 +17,15 @@ This is a creative log, not a version changelog.
 
 ## 2026 (initial build)
 
+### Newsmap
+An open-data world dashboard: 2D/3D map, multi-source news feed, live
+event overlays (earthquakes, NASA natural events, weather alerts, ISS,
+aircraft), and a live-channel video wall. Strictly "no signup, no
+paywall" — every data source is a public API or RSS feed, every video
+tile is a keyless YouTube live embed or an HLS stream. The whole thing
+is a single self-contained HTML file that pulls three libs from a CDN
+(Leaflet, globe.gl, hls.js) and otherwise runs entirely in the browser.
+
 ### Curtain Lens
 A SNES-scale top-down game proof-of-concept. 40KB, fully self-contained, no assets.
 Built around the "curtain-lens perception" mechanic — the idea that consciousness
