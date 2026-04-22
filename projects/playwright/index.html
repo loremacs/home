@@ -901,7 +901,11 @@ function resolveByText(doc, text) {
   return null;
 }
 function resolveByRole(doc, value) {
-  const [role, name] = value.split(":");
+  // Split on the first colon only so accessible names that contain ':'
+  // (e.g. "button:Sign in: Admin") still resolve correctly.
+  const colonIdx = value.indexOf(":");
+  const role = colonIdx === -1 ? value : value.slice(0, colonIdx);
+  const name = colonIdx === -1 ? ""    : value.slice(colonIdx + 1);
   const all = doc.querySelectorAll("*");
   for (const el of all) {
     const r = el.getAttribute("role") || implicitRole(el);
@@ -1010,6 +1014,15 @@ function addScreenshot() {
 
 function copyCode() {
   const el = $("code");
+  const text = el.value;
+  // Prefer the async Clipboard API (HTTPS only) and fall back to the
+  // legacy execCommand path for older browsers / file:// contexts.
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text)
+      .then(() => setStatus("Code copied.", "ok"))
+      .catch(() => setStatus("Copy failed.", "err"));
+    return;
+  }
   el.select();
   try { document.execCommand("copy"); setStatus("Code copied.", "ok"); }
   catch { setStatus("Copy failed.", "err"); }
@@ -1023,8 +1036,11 @@ function downloadCode() {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "recorded." + ext;
+  const url = a.href;
   a.click();
-  URL.revokeObjectURL(a.href);
+  // Defer revoke so the browser has time to kick off the download before
+  // the blob URL is invalidated.
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 // ==========================================================

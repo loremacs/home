@@ -338,7 +338,7 @@ const SHELL_SCALE_STEP = 1.75;
 const CATALOG = [
   { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: PROJECTS_BASE + "playwright/" },
   { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: PROJECTS_BASE + "emergent-lab/" },
-  { id: "triptych",     title: "Triptych of Passage",   desc: "SNES-scale top-down POC with curtain-lens perception.", href: PROJECTS_BASE + "triptych/" },
+  { id: "curtain-lens", title: "Curtain Lens",          desc: "SNES-scale top-down POC with curtain-lens perception.", href: PROJECTS_BASE + "curtain-lens/" },
   { id: "prism",        title: "Prism Field",           desc: "Signals get sorted." },
   { id: "loom",         title: "Loom",                  desc: "Threads find their weave." },
   { id: "fathom",       title: "Fathom",                desc: "Depth as calibration." },
@@ -389,6 +389,7 @@ const DUMMY_POOL = [
   ["Rift",      "Where something gave."],
 ];
 function ensureFullCatalog() {
+  if (CATALOG.length >= TOTAL_CAPACITY) return;
   let i = 0;
   while (CATALOG.length < TOTAL_CAPACITY) {
     const [title, desc] = DUMMY_POOL[i % DUMMY_POOL.length];
@@ -572,7 +573,7 @@ function makeThumb(n) {
       <rect width="160" height="90" fill="#0a1528"/>${dots}
     </svg>`;
   }
-  if (n.id === "triptych") {
+  if (n.id === "curtain-lens") {
     return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
       <rect width="160" height="90" fill="#0a0a1a"/>
       <rect x="10" y="10" width="40" height="70" fill="#2d1b69" stroke="#00f0ff"/>
@@ -1086,10 +1087,12 @@ document.getElementById("hintClose").addEventListener("click", () => {
 function restoreView() {
   const v = loadView();
   if (!v) return;
-  const z = Math.max(0, Math.min(1, v.zoom));
+  const z = Number.isFinite(v.zoom) ? Math.max(0, Math.min(1, v.zoom)) : 0;
   state.zoom = z; state.targetZoom = z;
-  state.rotX = v.rotX; state.targetRotX = v.rotX;
-  state.rotY = v.rotY; state.targetRotY = v.rotY;
+  const rx = Number.isFinite(v.rotX) ? Math.max(-1.2, Math.min(1.2, v.rotX)) : -0.18;
+  const ry = Number.isFinite(v.rotY) ? v.rotY : 0.15;
+  state.rotX = rx; state.targetRotX = rx;
+  state.rotY = ry; state.targetRotY = ry;
 }
 
 initSky();

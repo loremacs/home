@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Triptych of Passage — Lattice Scav (POC)</title>
+<title>Curtain Lens — Lattice Scav (POC)</title>
 <style>
   html,body{margin:0;padding:0;background:#05020f;color:#e5e3f2;font-family:"Courier New",monospace;overflow:hidden;height:100%;}
   #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:10px;padding:12px;box-sizing:border-box;}
@@ -19,7 +19,7 @@
 </head>
 <body>
 <div id="wrap">
-  <div id="title">THE TRIPTYCH OF PASSAGE</div>
+  <div id="title">CURTAIN LENS</div>
   <div id="sub">// lattice scav — proof of concept //</div>
   <div id="frame"><canvas id="screen" width="256" height="224"></canvas></div>
   <div id="keys">
@@ -29,7 +29,7 @@
 <script>
 "use strict";
 //==============================================================
-// TRIPTYCH OF PASSAGE — POC
+// CURTAIN LENS — POC
 // Single-file, zero-asset, SNES-scale top-down adventure.
 // Canon grounding: Bridge Hunters, Curtain Theory, Relic System,
 // Rift hidden layer, VOX phase mechanics.
@@ -688,7 +688,7 @@ const AREAS = {
     intro: "This place does not agree with itself. Curtain up — the walls yield. Curtain down — the floor holds. Oscillate. That is the only way through.",
     fragmentName: "BRIDGE FRAGMENT // PUL",
     fragmentUnlocks: null,
-    fragmentText: "FRAGMENT PUL bonded. The Triptych resonates.\n\nThree Bridges. One to cross. One to lose. One to find your way home."
+    fragmentText: "FRAGMENT PUL bonded. The Curtain Lens resonates.\n\nThree Bridges. One to cross. One to lose. One to find your way home."
   },
 };
 
@@ -1244,7 +1244,7 @@ function drawDialog(){
 function drawWin(){
   ctx.fillStyle = "rgba(5,2,15,0.88)";
   ctx.fillRect(0,0,W,H);
-  drawText("THE TRIPTYCH RESONATES", 32, 60, PAL[7]);
+  drawText("THE CURTAIN LENS RESONATES", 32, 60, PAL[7]);
   drawText("THREE BRIDGES", 78, 78, PAL[9]);
   drawText("ONE TO CROSS.", 60, 100, PAL[10]);
   drawText("ONE TO LOSE.",  60, 112, PAL[10]);
@@ -1320,7 +1320,7 @@ function frame(){
 // Boot
 //-------------------------------------------------------------
 loadArea("overworld");
-showDialog("THE TRIPTYCH OF PASSAGE\n\nYou are Archivist-7, a Bridge Hunter. Three Fragments have surfaced. Bring them back.\n\nHold SHIFT to perceive the hidden layer.");
+showDialog("CURTAIN LENS\n\nYou are Archivist-7, a Bridge Hunter. Three Fragments have surfaced. Bring them back.\n\nHold SHIFT to perceive the hidden layer.");
 requestAnimationFrame(frame);
 
 </script>

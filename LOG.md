@@ -17,13 +17,12 @@ This is a creative log, not a version changelog.
 
 ## 2026 (initial build)
 
-### Triptych of Passage
+### Curtain Lens
 A SNES-scale top-down game proof-of-concept. 40KB, fully self-contained, no assets.
-Built around the "curtain-lens perception" mechanic from a separate book project —
-the idea that consciousness oscillates between seeing and not-seeing, and that mechanic
-is literally encoded in how you navigate the levels. Three sub-areas: a dig site, a
-corporate sublevel, and a geometry-unstable rift seam. Collect Bridge Fragments, unlock
-abilities, reach the end.
+Built around the "curtain-lens perception" mechanic — the idea that consciousness
+oscillates between seeing and not-seeing, and that mechanic is literally encoded in
+how you navigate the levels. Three sub-areas: a dig site, a corporate sublevel, and a
+geometry-unstable rift seam. Collect Bridge Fragments, unlock abilities, reach the end.
 
 ### Emergent Logic Lab
 A boid-swarm simulation where the agent rule is a live editable JavaScript object.

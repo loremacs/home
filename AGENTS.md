@@ -44,7 +44,7 @@ key to the `loremacs` account or use a host-alias in `~/.ssh/config`.
     │       └── form.html
     ├── emergent-lab/
     │   └── index.html           editable agent swarm + self-healing runtime
-    └── triptych/
+    └── curtain-lens/
         └── index.html           top-down game POC (40KB, self-contained)
 ```
 
@@ -163,13 +163,12 @@ functions. On Apply, we:
 This is a demo of "self-testing, self-healing" more than a serious
 tool. Don't over-engineer it.
 
-### 3.4 Triptych of Passage — `projects/triptych/`
+### 3.4 Curtain Lens — `projects/curtain-lens/`
 
 A top-down tile-based POC I preserved from an earlier project. It is
-~40KB of self-contained HTML with no external assets. The "three
-panels with curtain-lens perception" metaphor is intentional and tied
-to a separate book project. Treat as read-only unless the user asks
-otherwise.
+~40KB of self-contained HTML with no external assets. The curtain-lens
+perception mechanic is intentional and tied to a separate book project.
+Treat as read-only unless the user asks otherwise.
 
 ---
 
@@ -224,7 +223,7 @@ make the call unilaterally without prompting:
 
 6. **Root redirect.** The book project (`d:\source\triptych-of-passage`,
    sibling of this repo) still has copies of the same files under
-   `game/`. They were intentionally *left in place* — this repo is a
+   `game/`. Those were intentionally *left in place* — this repo is a
    sibling, not a fork. The user may want to delete the game/
    subtree from the book repo eventually but has not asked for it.
    Do not touch the book repo.
