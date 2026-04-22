@@ -1,88 +1,68 @@
-# home
+# loremacs / home
 
-A static site of small web experiments by **@loremacs**.
+A personal playground where I direct AI to build the things I imagine —
+then use those things, break them, and show them to people.
 
-The landing page is an interactive 3D sphere of nodes — each node is a
-sub-page in this repo. Drag to rotate, scroll to dive deeper. Visited
-nodes drift toward the front over time (persisted in `localStorage`).
+This isn't a portfolio of my coding ability. It's a record of my ability
+to **prompt, direct, and iterate**: to turn an idea into something real by
+working with AI as a creative partner. The experiments here reflect
+imagination and curiosity more than any particular technical skill.
 
-## Structure
+The landing page is an interactive 3D star-map. Each node floating in the
+sphere is one experiment. Drag to rotate it. Scroll to dive deeper into
+the field. Nodes you visit drift toward the front over time.
 
-```
-/
-├── index.html              # atlas (the rotating cosmic hub)
-└── projects/
-    ├── playwright/         # Playwright record/replay playground
-    │   ├── index.html
-    │   └── fixtures/       # same-origin pages that can be recorded
-    │       ├── login.html
-    │       ├── todo.html
-    │       └── form.html
-    ├── emergent-lab/       # editable agent-swarm with self-healing runtime
-    │   └── index.html
-    └── triptych/           # Triptych of Passage — top-down game POC
-        └── index.html
-```
+---
 
-Everything is plain HTML + CSS + JS. No build step. No dependencies.
-Open any file in a browser (or serve the folder statically) and it runs.
+## What's here
 
-## Local preview
+| Experiment | What it is |
+|------------|-----------|
+| [Playwright Playground](projects/playwright/) | Record interactions in an iframe, replay them, export runnable Playwright test code in TypeScript, JavaScript, or Python. |
+| [Emergent Logic Lab](projects/emergent-lab/) | A live boid-swarm where you edit the agent rule in a textarea and the simulation heals itself if your code breaks it. |
+| [Triptych of Passage](projects/triptych/) | A SNES-scale top-down game POC tied to a separate book project. Curtain-lens perception mechanic as a playable metaphor. |
+| *(+27 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
 
-Any static file server will do. For example:
+See [`LOG.md`](LOG.md) for a running history of what's been added and when.
+
+---
+
+## How it works
+
+Every experiment is a single self-contained `index.html` file under `projects/`.
+No build step. No framework. No dependencies. Open any file in a browser and it runs.
+
+The sphere on the landing page reads a catalog array in its own `<script>` block.
+Adding a new experiment is two steps:
+
+1. Drop a folder under `projects/` with an `index.html` inside.
+2. Give an existing placeholder entry an `href` in the `CATALOG` array
+   (or add a new entry at the end).
+
+The sphere picks it up automatically.
+
+---
+
+## Running locally
 
 ```powershell
-python -m http.server 5173
+python -m http.server 5174
+# then open http://localhost:5174/
 ```
 
-Then visit `http://localhost:5173/`.
-
-## Adding a new page
-
-1. Create a folder in `projects/`, e.g. `projects/prism-field/`, with an
-   `index.html` inside. Anything referenced with a relative path from
-   that folder will work.
-2. In `index.html` (the atlas at the repo root), open the `CATALOG`
-   array near the top of the `<script>` block and either:
-   - add a new entry with an `href` pointing at your folder, or
-   - edit an existing placeholder entry and add the `href`.
-
-Example entry:
-
-```js
-{
-  id: "prism",
-  title: "Prism Field",
-  desc: "Signals get sorted.",
-  href: "projects/prism-field/"
-}
-```
-
-That's it. The sphere picks up the new node automatically.
-
-## Removing a page
-
-Delete the folder in `projects/` and remove (or blank the `href` on) its catalog entry.
-Placeholder-only entries still show on the sphere and flash a "coming
-soon" toast when clicked — useful for teasing future work.
-
-## Ranking
-
-Each visitor's click counts live in `localStorage` under
-`loremacs.atlas.clicks.v1`. The ranking algorithm is:
-
-```
-score = catalogIndex - clickCount * 2
-```
-
-Lower score = higher priority = visible sooner at low zoom. The "reset"
-link in the top bar wipes the local click history.
-
-Cross-visitor aggregated ranking would need a backend; not in this
-repo yet.
+---
 
 ## Deploying
 
-Any static host works: GitHub Pages, Cloudflare Pages, Netlify,
-Vercel, or a plain bucket + CDN. No build command is required; just
-publish the root of the repo.
+Any static host: GitHub Pages, Cloudflare Pages, Netlify, Vercel.
+No build command needed — publish the repo root as-is.
+
+---
+
+## Other files
+
+| File | Purpose |
+|------|---------|
+| [`AGENTS.md`](AGENTS.md) | Handoff context for AI agents (or anyone) picking up work on this repo. Architecture decisions, sharp edges, open questions. |
+| [`BUGS.md`](BUGS.md) | Tracked bugs and security notes from a 2026-04-21 review. |
+| [`LOG.md`](LOG.md) | Running log of experiments added — creative history, not a version changelog. |
