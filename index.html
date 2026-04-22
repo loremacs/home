@@ -108,6 +108,41 @@
     color: var(--muted);
     line-height: 1.35;
   }
+  .node .card { position: relative; }
+  .node .meta-tooltip {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    width: 220px;
+    background: rgba(10, 25, 45, 0.95);
+    border: 1px solid rgba(0, 242, 255, 0.4);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 11px;
+    color: var(--text);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.8), 0 0 15px rgba(0, 242, 255, 0.1);
+    text-align: left;
+  }
+  .node:hover .meta-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .meta-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: rgba(0, 242, 255, 0.4);
+  }
+  .meta-prop { color: var(--accent); font-weight: bold; margin-bottom: 4px; display: block; font-family: "Consolas", monospace; font-size: 10px; letter-spacing: 0.1em; }
+  .meta-jist { color: var(--muted); line-height: 1.5; font-style: italic; }
   .node .rank-dot {
     position: absolute;
     top: 6px; right: 6px;
@@ -336,11 +371,11 @@ const TOTAL_CAPACITY = SHELL_DEFS.reduce((s, d) => s + d.capacity, 0);
 const SHELL_SCALE_STEP = 1.75;
 
 const CATALOG = [
-  { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: PROJECTS_BASE + "playwright/" },
-  { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: PROJECTS_BASE + "emergent-lab/" },
-  { id: "curtain-lens", title: "Curtain Lens",          desc: "SNES-scale top-down POC with curtain-lens perception.", href: PROJECTS_BASE + "curtain-lens/" },
-  { id: "newsmap",      title: "Newsmap",               desc: "Open world-intel: map + live news + events + channels.", href: PROJECTS_BASE + "newsmap/" },
-  { id: "prism-break", title: "Gemini3Flash: Prism Break", desc: "Shatter the spectrum in this neon arcade experience.", href: PROJECTS_BASE + "gemini-prism-break/" },
+  { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: PROJECTS_BASE + "playwright/", prompts: 12, jist: "Build a browser-based codegen tool that records interactions in an iframe and exports Playwright scripts." },
+  { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: PROJECTS_BASE + "emergent-lab/", prompts: 8, jist: "Create a self-healing agent simulation where users can edit rules live." },
+  { id: "curtain-lens", title: "Curtain Lens",          desc: "SNES-scale top-down POC with curtain-lens perception.", href: PROJECTS_BASE + "curtain-lens/", prompts: 5, jist: "Implement a top-down game POC for the 'Triptych' series meta-metaphor." },
+  { id: "newsmap",      title: "Newsmap",               desc: "Open world-intel: map + live news + events + channels.", href: PROJECTS_BASE + "newsmap/", prompts: 15, jist: "Build a multi-panel world dashboard with maps, news, and live feeds." },
+  { id: "prism-break", title: "Gemini3Flash: Prism Break", desc: "Shatter the spectrum in this neon arcade experience.", href: PROJECTS_BASE + "gemini-prism-break/", prompts: 4, jist: "High-fidelity neon breakout game featuring custom SVG thumbnails and AI-collaboration metadata tracking." },
   { id: "loom",         title: "Loom",                  desc: "Threads find their weave." },
   { id: "fathom",       title: "Fathom",                desc: "Depth as calibration." },
   { id: "glyph",        title: "Glyph Forge",           desc: "Symbols want to mean." },
@@ -519,9 +554,17 @@ function buildNodes() {
       a.dataset.id = item.id;
       a.title = item.title;
       if (isLive) {
+        const metaHtml = (item.prompts || item.jist) ? `
+          <div class="meta-tooltip">
+            <span class="meta-prop">PROMPTS: ${item.prompts || '??'}</span>
+            <div class="meta-jist">${escapeHtml(item.jist || 'No process record available.')}</div>
+          </div>
+        ` : '';
+
         a.innerHTML = `
           <div class="card">
             <div class="rank-dot"></div>
+            ${metaHtml}
             <div class="thumb">${makeThumb(item)}</div>
             <div class="title">${escapeHtml(item.title)}</div>
             <div class="desc">${escapeHtml(item.desc)}</div>

@@ -502,6 +502,8 @@ function loadState() {
     if (s.pollIntervalSecs) state.pollIntervalSecs = s.pollIntervalSecs;
     if (s.pollFeedSecs) state.pollFeedSecs = s.pollFeedSecs;
     if (s.focusRegion) state.focusRegion = s.focusRegion;
+    // v2 migration: ensure newly default-on layers (aircraft) get added for existing users
+    if (!s.layersV2) { for (const l of LAYERS) { if (l.on) state.layers.add(l.id); } }
   } catch(e) {}
 }
 function saveState() {
@@ -514,6 +516,7 @@ function saveState() {
       pollIntervalSecs: state.pollIntervalSecs,
       pollFeedSecs: state.pollFeedSecs,
       focusRegion: state.focusRegion,
+      layersV2: true,
     }));
   } catch(e) {}
 }
@@ -786,46 +789,42 @@ async function loadISS() {
 async function loadAircraft() {
   const reg = activeRegion();
   const now = Date.now();
-  try {
-    let aircraft = [];
-    if (reg.id !== "global" && reg.bounds) {
-      // Regional view: use adsb.lol for denser ADS-B coverage
-      const lat = (reg.bounds[0][0] + reg.bounds[1][0]) / 2;
-      const lon = (reg.bounds[0][1] + reg.bounds[1][1]) / 2;
-      const dist = Math.min(500, Math.max(150, Math.round(Math.abs(reg.bounds[1][0]-reg.bounds[0][0]) * 55)));
-      const url = `https://api.adsb.lol/v2/lat/${lat.toFixed(2)}/lon/${lon.toFixed(2)}/dist/${dist}`;
-      const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
-      aircraft = (data.aircraft || []).filter(a => a.lat != null && a.lon != null).slice(0, 400).map(a => ({
-        id:"ac:"+a.hex, layer:"aircraft",
-        title: ((a.flight||a.hex)||"?").trim() + (a.r ? " ("+a.r+")" : ""),
-        ts: now, lat: a.lat, lng: a.lon,
-        alt: a.alt_baro ?? a.alt_geom, vel: a.gs, heading: a.track, icao24: a.hex,
-        url: "https://globe.adsbexchange.com/?icao=" + a.hex,
-      }));
-    } else {
-      // Global view: OpenSky via allorigins proxy
-      const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://opensky-network.org/api/states/all"));
-      const ts = (data.time || now/1000)*1000;
-      aircraft = (data.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 200).map(s => ({
-        id:"ac:"+s[0], layer:"aircraft",
-        title: ((s[1]||s[0])||"  ").trim() + " \u00b7 " + (s[2]||"?"),
-        ts, lat: s[6], lng: s[5], alt: s[7], vel: s[9], heading: s[10], icao24: s[0],
-        url: "https://opensky-network.org/aircraft-profile?icao24="+s[0],
-      }));
-    }
-    // Update rolling trail buffer
-    const alive = new Set(aircraft.map(a => a.icao24));
-    for (const a of aircraft) {
-      if (!state.aircraftTrails[a.icao24]) state.aircraftTrails[a.icao24] = [];
-      const trail = state.aircraftTrails[a.icao24];
-      trail.push({ lat: a.lat, lng: a.lng, ts: now });
-      while (trail.length > 15 || (trail.length > 1 && now - trail[0].ts > 900000)) trail.shift();
-    }
-    for (const id of Object.keys(state.aircraftTrails)) if (!alive.has(id)) delete state.aircraftTrails[id];
-    return aircraft;
+  let aircraft = [];
+  if (reg.id !== "global" && reg.bounds) {
+    // Regional view: use adsb.lol for denser ADS-B coverage
+    const lat = (reg.bounds[0][0] + reg.bounds[1][0]) / 2;
+    const lon = (reg.bounds[0][1] + reg.bounds[1][1]) / 2;
+    const dist = Math.min(500, Math.max(150, Math.round(Math.abs(reg.bounds[1][0]-reg.bounds[0][0]) * 55)));
+    const url = `https://api.adsb.lol/v2/lat/${lat.toFixed(2)}/lon/${lon.toFixed(2)}/dist/${dist}`;
+    const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+    aircraft = (data.aircraft || []).filter(a => a.lat != null && a.lon != null).slice(0, 400).map(a => ({
+      id:"ac:"+a.hex, layer:"aircraft",
+      title: ((a.flight||a.hex)||"?").trim() + (a.r ? " ("+a.r+")" : ""),
+      ts: now, lat: a.lat, lng: a.lon,
+      alt: a.alt_baro ?? a.alt_geom, vel: a.gs, heading: a.track, icao24: a.hex,
+      url: "https://globe.adsbexchange.com/?icao=" + a.hex,
+    }));
+  } else {
+    // Global view: OpenSky via allorigins proxy
+    const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://opensky-network.org/api/states/all"));
+    const ts = (data.time || now/1000)*1000;
+    aircraft = (data.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 200).map(s => ({
+      id:"ac:"+s[0], layer:"aircraft",
+      title: ((s[1]||s[0])||"  ").trim() + " \u00b7 " + (s[2]||"?"),
+      ts, lat: s[6], lng: s[5], alt: s[7], vel: s[9], heading: s[10], icao24: s[0],
+      url: "https://opensky-network.org/aircraft-profile?icao24="+s[0],
+    }));
   }
-  // caller (track wrapper in loadAllEvents) will catch and log
-  throw new Error("aircraft load failed");
+  // Update rolling trail buffer
+  const alive = new Set(aircraft.map(a => a.icao24));
+  for (const a of aircraft) {
+    if (!state.aircraftTrails[a.icao24]) state.aircraftTrails[a.icao24] = [];
+    const trail = state.aircraftTrails[a.icao24];
+    trail.push({ lat: a.lat, lng: a.lng, ts: now });
+    while (trail.length > 15 || (trail.length > 1 && now - trail[0].ts > 900000)) trail.shift();
+  }
+  for (const id of Object.keys(state.aircraftTrails)) if (!alive.has(id)) delete state.aircraftTrails[id];
+  return aircraft;
 }
 
 // ---------- NEW EVENT SOURCES ----------
@@ -853,18 +852,17 @@ async function loadRainviewer() {
 }
 
 async function loadLaunches() {
-  try {
-    // Launch Library 2 - free, 15 req/hr, no key needed
-    const r = await fetchJSON("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?format=json&limit=12&ordering=net");
-    return (r.results || []).filter(l => l.pad?.latitude && l.pad?.longitude).map(l => ({
-      id: "launch:" + l.id, layer: "launches",
-      title: (l.name || "Launch") + (l.launch_service_provider?.name ? " · " + l.launch_service_provider.name : ""),
-      ts: new Date(l.net || l.window_start || Date.now()).getTime(),
-      lat: parseFloat(l.pad.latitude), lng: parseFloat(l.pad.longitude),
-      url: l.url || null,
-      rocket: l.rocket?.configuration?.name || "",
-      location: l.pad.location?.name || "",
-    }));
+  // Launch Library 2 - free, 15 req/hr, no key needed
+  const r = await fetchJSON("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?format=json&limit=12&ordering=net");
+  return (r.results || []).filter(l => l.pad?.latitude && l.pad?.longitude).map(l => ({
+    id: "launch:" + l.id, layer: "launches",
+    title: (l.name || "Launch") + (l.launch_service_provider?.name ? " · " + l.launch_service_provider.name : ""),
+    ts: new Date(l.net || l.window_start || Date.now()).getTime(),
+    lat: parseFloat(l.pad.latitude), lng: parseFloat(l.pad.longitude),
+    url: l.url || null,
+    rocket: l.rocket?.configuration?.name || "",
+    location: l.pad.location?.name || "",
+  }));
 }
 
 // Extra satellite tracking via satellite.js + tle.ivanstanojevic.me (free, no key)
@@ -899,18 +897,24 @@ async function loadSatellites() {
 }
 async function loadAllEvents() {
   setStatus("loading events...");
-  const tasks = [
-    state.layers.has("quakes")     ? loadQuakes()      : Promise.resolve([]),
-    state.layers.has("eonet")      ? loadEONET()       : Promise.resolve([]),
-    state.layers.has("alerts")     ? loadAlerts()      : Promise.resolve([]),
-    state.layers.has("iss")        ? loadISS()         : Promise.resolve([]),
-    state.layers.has("satellites") ? loadSatellites()  : Promise.resolve([]),
-    state.layers.has("aircraft")   ? loadAircraft()    : Promise.resolve([]),
-    state.layers.has("launches")   ? loadLaunches()    : Promise.resolve([]),
-  ];
-  const all = (await Promise.all(tasks)).flat();
+  const track = async (id, fn) => {
+    if (!state.layers.has(id)) { delete SRCSTATUS[id]; return []; }
+    const label = LAYERS.find(l => l.id === id)?.name || id;
+    setSrcStatus(id, "load", label, "");
+    try { const items = await fn(); setSrcStatus(id, "ok", label, "", items.length); return items; }
+    catch(e) { setSrcStatus(id, "error", label, e.message||String(e)); return []; }
+  };
+  const all = (await Promise.all([
+    track("quakes",     loadQuakes),
+    track("eonet",      loadEONET),
+    track("alerts",     loadAlerts),
+    track("iss",        loadISS),
+    track("satellites", loadSatellites),
+    track("aircraft",   loadAircraft),
+    track("launches",   loadLaunches),
+  ])).flat();
   state.events = all.sort((a,b) => b.ts - a.ts);
-  await loadRainviewer(); // tile layer — separate from point events
+  await loadRainviewer();
   renderEvents(); renderMapLayers();
   setStatus("events: " + state.events.length + " markers");
 }
@@ -1533,6 +1537,15 @@ function wireUI() {
     toast("Refreshed");
   };
   $("btnGlobal").onclick = () => { setFocusRegion("global"); if (state.map) state.map.setView([20,10], 2, {animate:true}); };
+  $("btnLog").onclick = openLog;
+  $("logClose").onclick = closeLog;
+  $("logClear").onclick = () => { LOG_ENTRIES.length = 0; renderLogEntries(); const badge=$("logErrBadge"); if(badge) badge.style.display="none"; };
+  $("logModal").querySelectorAll(".lvl-btn").forEach(btn => btn.addEventListener("click", () => {
+    _logFilter = btn.dataset.lvl;
+    $("logModal").querySelectorAll(".lvl-btn").forEach(b => b.classList.toggle("active", b.dataset.lvl === _logFilter));
+    renderLogEntries();
+  }));
+  $("logModal").addEventListener("click", e => { if (e.target === $("logModal")) closeLog(); });
   $("btnSettings").onclick = openSettings;
   $("closeSettings").onclick = closeSettings;
   $("settingsOverlay").onclick = closeSettings;

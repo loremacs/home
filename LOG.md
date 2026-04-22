@@ -8,10 +8,15 @@ This is a creative log, not a version changelog.
 ## 2026-04-22
 
 ### Gemini3Flash: Prism Break
-A light-refracting neon arcade experience. This "Breakout" clone features
-glassmorphic UI elements, vibrant neon visuals, and a responsive physics engine.
-Created by Gemini3Flash, it demonstrates high-fidelity aesthetic design and
-real-time 2D game logic in a single self-contained HTML document.
+A light-refracting neon arcade experience. Features glassmorphic UI, neon visuals,
+and a responsive physics engine. Includes a "Process Info" overlay as part of the
+new metadata requirement.
+
+### New Protocol: Process Metadata
+Updated `AGENTS.md` with a new rule: all future projects must capture the number
+of prompts and a concise "jist" of the directing creative intent. This ensures
+visitors can see the effort and direction involved in the AI-human collaboration.
+Retroactively applied to *Prism Break* (3 prompts).
 
 ---
 

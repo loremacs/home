@@ -356,6 +356,11 @@ Pending the user's answers above, the highest-leverage next steps:
   unless asked.
 - **Prefer minimal, focused edits.** See the user's bug-fixing
   discipline rule.
+- **Capture Process Metadata.** Every new project must include metadata in the `CATALOG` array in `index.html`:
+  - `prompts`: The number of prompts it took to arrive at the current state.
+  - `jist`: A concise summary of the directing prompts (the core creative intent).
+  This metadata is displayed as a stylized tooltip when hovering over the card on the atlas (landing page).
+
 
 ---
 
