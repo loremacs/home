@@ -528,15 +528,15 @@ function cacheGet(k) {
     if (!raw) return null;
     const c = JSON.parse(raw);
     const e = c[k];
-    if (!e || Date.now() - e.t > CACHE_TTL) return null;
+    if (!e || Date.now() - e.t > (e.ttl || CACHE_TTL)) return null;
     return e.d;
   } catch(e) { return null; }
 }
-function cacheSet(k, d) {
+function cacheSet(k, d, ttl) {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     const c = raw ? JSON.parse(raw) : {};
-    c[k] = { t: Date.now(), d };
+    c[k] = { t: Date.now(), d, ttl: ttl || CACHE_TTL };
     localStorage.setItem(CACHE_KEY, JSON.stringify(c));
   } catch(e) {
     // Over quota - clear cache and retry once.
@@ -787,34 +787,30 @@ async function loadISS() {
     url:"https://spotthestation.nasa.gov/" }];
 }
 async function loadAircraft() {
-  const reg = activeRegion();
   const now = Date.now();
-  let aircraft = [];
-  if (reg.id !== "global" && reg.bounds) {
-    // Regional view: use adsb.lol for denser ADS-B coverage
-    const lat = (reg.bounds[0][0] + reg.bounds[1][0]) / 2;
-    const lon = (reg.bounds[0][1] + reg.bounds[1][1]) / 2;
-    const dist = Math.min(500, Math.max(150, Math.round(Math.abs(reg.bounds[1][0]-reg.bounds[0][0]) * 55)));
-    const url = `https://api.adsb.lol/v2/lat/${lat.toFixed(2)}/lon/${lon.toFixed(2)}/dist/${dist}`;
-    const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
-    aircraft = (data.aircraft || []).filter(a => a.lat != null && a.lon != null).slice(0, 400).map(a => ({
-      id:"ac:"+a.hex, layer:"aircraft",
-      title: ((a.flight||a.hex)||"?").trim() + (a.r ? " ("+a.r+")" : ""),
-      ts: now, lat: a.lat, lng: a.lon,
-      alt: a.alt_baro ?? a.alt_geom, vel: a.gs, heading: a.track, icao24: a.hex,
-      url: "https://globe.adsbexchange.com/?icao=" + a.hex,
-    }));
-  } else {
-    // Global view: OpenSky via allorigins proxy
-    const data = await fetchJSON("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://opensky-network.org/api/states/all"));
-    const ts = (data.time || now/1000)*1000;
-    aircraft = (data.states || []).filter(s => s[5] != null && s[6] != null).slice(0, 200).map(s => ({
-      id:"ac:"+s[0], layer:"aircraft",
-      title: ((s[1]||s[0])||"  ").trim() + " \u00b7 " + (s[2]||"?"),
-      ts, lat: s[6], lng: s[5], alt: s[7], vel: s[9], heading: s[10], icao24: s[0],
-      url: "https://opensky-network.org/aircraft-profile?icao24="+s[0],
-    }));
+  // Use map center if available, else fall back to region center or world center.
+  // adsb.lol has CORS headers — no proxy needed. Max radius: 250 nm.
+  let clat = 20, clng = 0, dist = 250;
+  const reg = activeRegion();
+  if (state.map) {
+    const c = state.map.getCenter();
+    clat = c.lat; clng = c.lng;
+    // Derive radius from zoom: zoom 2 ≈ 250nm, zoom 8 ≈ 80nm, zoom 12 ≈ 30nm
+    const z = state.map.getZoom();
+    dist = Math.max(30, Math.min(250, Math.round(250 / Math.pow(1.4, Math.max(0, z - 2)))));
+  } else if (reg.bounds) {
+    clat = (reg.bounds[0][0] + reg.bounds[1][0]) / 2;
+    clng = (reg.bounds[0][1] + reg.bounds[1][1]) / 2;
   }
+  const url = `https://api.adsb.lol/v2/lat/${clat.toFixed(3)}/lon/${clng.toFixed(3)}/dist/${dist}`;
+  const data = await fetchJSON(url);
+  const aircraft = (data.ac || data.aircraft || []).filter(a => a.lat != null && (a.lon ?? a.lng) != null).slice(0, 400).map(a => ({
+    id:"ac:"+(a.hex||a.icao24), layer:"aircraft",
+    title: ((a.flight||a.hex||a.icao24)||"?").trim() + (a.r ? " ("+a.r+")" : ""),
+    ts: now, lat: a.lat, lng: a.lon ?? a.lng,
+    alt: a.alt_baro ?? a.alt_geom ?? a.altitude, vel: a.gs ?? a.velocity, heading: a.track ?? a.true_track, icao24: a.hex || a.icao24,
+    url: "https://globe.adsbexchange.com/?icao=" + (a.hex||a.icao24),
+  }));
   // Update rolling trail buffer
   const alive = new Set(aircraft.map(a => a.icao24));
   for (const a of aircraft) {
@@ -852,9 +848,12 @@ async function loadRainviewer() {
 }
 
 async function loadLaunches() {
-  // Launch Library 2 - free, 15 req/hr, no key needed
+  // Launch Library 2 - free, 15 req/hr — cache 1 hour to respect rate limit
+  const LAUNCH_TTL = 3600 * 1000;
+  const cached = cacheGet("launches_ll2");
+  if (cached) return cached;
   const r = await fetchJSON("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?format=json&limit=12&ordering=net");
-  return (r.results || []).filter(l => l.pad?.latitude && l.pad?.longitude).map(l => ({
+  const results = (r.results || []).filter(l => l.pad?.latitude && l.pad?.longitude).map(l => ({
     id: "launch:" + l.id, layer: "launches",
     title: (l.name || "Launch") + (l.launch_service_provider?.name ? " · " + l.launch_service_provider.name : ""),
     ts: new Date(l.net || l.window_start || Date.now()).getTime(),
@@ -863,6 +862,8 @@ async function loadLaunches() {
     rocket: l.rocket?.configuration?.name || "",
     location: l.pad.location?.name || "",
   }));
+  cacheSet("launches_ll2", results, LAUNCH_TTL);
+  return results;
 }
 
 // Extra satellite tracking via satellite.js + tle.ivanstanojevic.me (free, no key)
@@ -871,13 +872,32 @@ const TRACKED_SATS = [
   { id: 20580, name: "Hubble" },
   { id: 43226, name: "Starlink-1" },
 ];
+async function _fetchTLE(satId) {
+  // CelesTrak primary (no rate limit, stable), ivanstanojevic fallback
+  const urls = [
+    `https://celestrak.org/SATCAT/tle.php?CATNR=${satId}`,
+    `https://tle.ivanstanojevic.me/api/tle/${satId}`,
+  ];
+  for (const url of urls) {
+    try {
+      const text = await fetchText(url);
+      const lines = text.trim().split("\n").map(l => l.trim()).filter(Boolean);
+      // CelesTrak returns 3-line format: name, line1, line2
+      if (lines.length >= 3) return { line1: lines[1], line2: lines[2] };
+      // ivanstanojevic returns JSON
+      const json = JSON.parse(text);
+      if (json.line1 && json.line2) return json;
+    } catch(e) { /* try next */ }
+  }
+  throw new Error("TLE fetch failed for " + satId);
+}
 async function loadSatellites() {
   if (typeof satellite === "undefined") throw new Error("satellite.js not loaded");
   const out = [];
   await Promise.allSettled(TRACKED_SATS.map(async sat => {
     try {
-      const data = await fetchJSON(`https://tle.ivanstanojevic.me/api/tle/${sat.id}`);
-      const satrec = satellite.twoline2satrec(data.line1, data.line2);
+      const tle = await _fetchTLE(sat.id);
+      const satrec = satellite.twoline2satrec(tle.line1, tle.line2);
       const now = new Date();
       const { position } = satellite.propagate(satrec, now);
       if (!position || position === true) return;
@@ -1243,9 +1263,10 @@ function renderWall() {
   // Regional channel filtering
   const r = activeRegion();
   let visible = chosen;
-  if (r.id !== "global" && r.chIds.length > 0) {
+  if (r.id !== "global") {
     const rSet = new Set(r.chIds);
-    const regional = chosen.filter(c => rSet.has(c.id));
+    // match explicit chIds OR channels tagged with this region
+    const regional = chosen.filter(c => rSet.has(c.id) || c.region === r.id);
     if (regional.length > 0) visible = regional;
   }
   if (visible.length === 0) {
@@ -1582,6 +1603,43 @@ function parseCustomChannel(u) {
   } catch(e) { return null; }
 }
 
+// ---------- REGIONS DATA LOADER ----------
+async function loadRegionsData() {
+  try {
+    const data = await fetchJSON("./data/regions.json");
+    let added = { feeds: 0, channels: 0, webcams: 0 };
+    // Merge feeds — skip ids already in FEEDS
+    const existingFeedIds = new Set(FEEDS.map(f => f.id));
+    for (const f of (data.feeds || [])) {
+      if (existingFeedIds.has(f.id)) continue;
+      FEEDS.push(f);
+      existingFeedIds.add(f.id);
+      added.feeds++;
+    }
+    // Merge channels + webcams — skip ids already in CHANNELS
+    const existingChIds = new Set(CHANNELS.map(c => c.id));
+    for (const c of [...(data.channels||[]), ...(data.webcams||[])]) {
+      if (existingChIds.has(c.id)) continue;
+      CHANNELS.push(c);
+      existingChIds.add(c.id);
+      if (c.type === "webcam") added.webcams++; else added.channels++;
+    }
+    // Ensure new channel ids appear in channelOrder
+    for (const c of CHANNELS) {
+      if (!state.channelOrder.includes(c.id)) state.channelOrder.push(c.id);
+    }
+    // Auto-enable feeds from regions.json that match the active focus (or are global)
+    for (const f of (data.feeds || [])) {
+      if (!f.defaultOff) state.feeds.add(f.id);
+    }
+    addLog("info", "regions.json", `Loaded: +${added.feeds} feeds, +${added.channels} channels, +${added.webcams} webcams`);
+    renderFeedSources();
+    renderSettingsPanel();
+  } catch(e) {
+    addLog("warn", "regions.json", "Could not load data/regions.json: " + (e.message||String(e)));
+  }
+}
+
 // ---------- POLLING ----------
 let _pollTimers = [];
 function startPolling() { restartPolling(); }
@@ -1601,6 +1659,8 @@ async function boot() {
   wireUI();
   initPanels();
   updateFocusUI();
+  // Load supplemental catalog first so feeds/channels are available for first render
+  await loadRegionsData();
   renderFeedSources();
   renderLayerSources();
   renderWall();

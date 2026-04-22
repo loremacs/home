@@ -376,7 +376,7 @@ const CATALOG = [
   { id: "curtain-lens", title: "Curtain Lens",          desc: "SNES-scale top-down POC with curtain-lens perception.", href: PROJECTS_BASE + "curtain-lens/", prompts: 5, jist: "Implement a top-down game POC for the 'Triptych' series meta-metaphor." },
   { id: "newsmap",      title: "Newsmap",               desc: "Open world-intel: map + live news + events + channels.", href: PROJECTS_BASE + "newsmap/", prompts: 15, jist: "Build a multi-panel world dashboard with maps, news, and live feeds." },
   { id: "prism-break", title: "Gemini3Flash: Prism Break", desc: "Shatter the spectrum in this neon arcade experience.", href: PROJECTS_BASE + "gemini-prism-break/", prompts: 4, jist: "High-fidelity neon breakout game featuring custom SVG thumbnails and AI-collaboration metadata tracking." },
-  { id: "loom",         title: "Loom",                  desc: "Threads find their weave." },
+  { id: "this-is-fine", title: "ThisIsFine", desc: "Scrape layoff news and tech jobs. Polled every 5 mins.", href: PROJECTS_BASE + "this-is-fine/", prompts: 1, jist: "Real-time dashboard for layoffs and job postings with a 5-minute polling interval and fire-themed UI." },
   { id: "fathom",       title: "Fathom",                desc: "Depth as calibration." },
   { id: "glyph",        title: "Glyph Forge",           desc: "Symbols want to mean." },
   { id: "palimpsest",   title: "Palimpsest",            desc: "The page remembers." },
@@ -669,6 +669,16 @@ function makeThumb(n) {
       <circle cx="80" cy="60" r="4" fill="#fff"/>
     </svg>`;
   }
+  if (n.id === "this-is-fine") {
+    return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+      <rect width="160" height="90" fill="#0f0500"/>
+      <path d="M0 90 Q40 40 80 90 T160 90" fill="#ff4d00" opacity="0.5"/>
+      <path d="M-20 90 Q20 20 60 90 T140 90" fill="#ffcc00" opacity="0.4"/>
+      <circle cx="80" cy="45" r="18" fill="#fff" opacity="0.05"/>
+      <text x="80" y="50" font-family="Consolas, monospace" font-size="10" fill="#ffcc00" text-anchor="middle" font-weight="900" letter-spacing="1">THIS IS FINE</text>
+    </svg>`;
+  }
+
 
   // Generic procedural glyph for placeholders
   const seed = hash(n.id);

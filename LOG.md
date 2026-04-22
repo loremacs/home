@@ -7,6 +7,12 @@ This is a creative log, not a version changelog.
 
 ## 2026-04-22
 
+### ThisIsFine
+A real-time "apocalypse console" that scrapes news about layoffs and job cuts
+alongside tech hiring opportunities. Built with a 5-minute polled timer,
+it aggregates data from GDELT, Hacker News, and RemoteOK. The UI features
+a custom "fire" aesthetic inspired by the iconic meme.
+
 ### Gemini3Flash: Prism Break
 A light-refracting neon arcade experience. Features glassmorphic UI, neon visuals,
 and a responsive physics engine. Includes a "Process Info" overlay as part of the
