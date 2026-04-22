@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>loremacs &mdash; atlas</title>
 <style>
   :root {
@@ -123,8 +123,25 @@
     border-color: rgba(140, 220, 255, 0.4);
   }
   .node.live .rank-dot { background: #7fffcc; box-shadow: 0 0 8px #7fffcc; }
-  .node.placeholder .card { opacity: 0.92; }
-  .node.placeholder .title { color: #aec8e8; }
+
+  /* Placeholders render as tiny transparent frisbee rings -- just a marker
+     for where future experiments will land. They don't show a card. */
+  .node.placeholder {
+    width: 26px;
+  }
+  .node.placeholder .marker {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(170, 210, 240, 0.35);
+    background: transparent;
+    box-shadow: 0 0 6px rgba(140, 200, 255, 0.08) inset;
+    margin: 0 auto;
+  }
+  .node.placeholder:hover .marker {
+    border-color: rgba(200, 230, 255, 0.6);
+    box-shadow: 0 0 8px rgba(140, 200, 255, 0.18) inset;
+  }
 
   /* Top bar */
   header.top {
@@ -494,17 +511,23 @@ function buildNodes() {
   for (const shell of state.shells) {
     for (const item of shell.items) {
       const a = document.createElement("a");
-      a.className = "node " + (item.href ? "live" : "placeholder");
+      const isLive = !!item.href;
+      a.className = "node " + (isLive ? "live" : "placeholder");
       a.href = item.href || "#";
       a.dataset.id = item.id;
-      a.innerHTML = `
-        <div class="card">
-          <div class="rank-dot"></div>
-          <div class="thumb">${makeThumb(item)}</div>
-          <div class="title">${escapeHtml(item.title)}</div>
-          <div class="desc">${escapeHtml(item.desc)}</div>
-        </div>
-      `;
+      a.title = item.title;
+      if (isLive) {
+        a.innerHTML = `
+          <div class="card">
+            <div class="rank-dot"></div>
+            <div class="thumb">${makeThumb(item)}</div>
+            <div class="title">${escapeHtml(item.title)}</div>
+            <div class="desc">${escapeHtml(item.desc)}</div>
+          </div>
+        `;
+      } else {
+        a.innerHTML = `<div class="marker" aria-hidden="true"></div>`;
+      }
       a.addEventListener("click", (e) => onNodeClick(e, item));
       sphere.appendChild(a);
       state.nodes.push({ ...item, el: a });
@@ -927,33 +950,44 @@ stage.addEventListener("wheel", (e) => {
   state.lastInteract = Date.now();
 }, { passive: false });
 
-// Touch pinch to zoom
+// Touch pinch to zoom. Native convention: spread fingers = zoom in (dive
+// deeper); pinch together = zoom out. passive: false + preventDefault so the
+// browser doesn't hijack the gesture to zoom the whole page.
 let pinchStart = null;
+function pinchDistance(e) {
+  return Math.hypot(
+    e.touches[0].clientX - e.touches[1].clientX,
+    e.touches[0].clientY - e.touches[1].clientY
+  );
+}
 stage.addEventListener("touchstart", (e) => {
   if (e.touches.length === 2) {
-    const d = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    pinchStart = { dist: d, zoom: state.targetZoom };
+    e.preventDefault();
+    pinchStart = { dist: pinchDistance(e), zoom: state.targetZoom };
   }
-}, { passive: true });
+}, { passive: false });
 stage.addEventListener("touchmove", (e) => {
   if (e.touches.length === 2 && pinchStart) {
-    const d = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    // Pinch in (fingers come together) dives deeper.
-    const delta = (pinchStart.dist - d) / 400;
+    e.preventDefault();
+    const d = pinchDistance(e);
+    // Spread fingers -> d grows -> delta positive -> dive deeper (zoom in).
+    const delta = (d - pinchStart.dist) / 300;
     let z = pinchStart.zoom + delta;
     if (z < 0) z = 0;
     if (z > 1) z = 1;
     state.targetZoom = z;
     state.lastInteract = Date.now();
   }
+}, { passive: false });
+stage.addEventListener("touchend", (e) => {
+  if (e.touches.length < 2) pinchStart = null;
 }, { passive: true });
-stage.addEventListener("touchend", () => { pinchStart = null; }, { passive: true });
+stage.addEventListener("touchcancel", () => { pinchStart = null; }, { passive: true });
+// Belt-and-braces: block iOS Safari's legacy gesture events so the page never
+// tries to browser-zoom while the user is pinching the atlas.
+document.addEventListener("gesturestart", (e) => e.preventDefault());
+document.addEventListener("gesturechange", (e) => e.preventDefault());
+document.addEventListener("gestureend", (e) => e.preventDefault());
 
 window.addEventListener("resize", () => {
   sky.width = innerWidth; sky.height = innerHeight;
