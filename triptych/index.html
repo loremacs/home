@@ -1,0 +1,1328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Triptych of Passage — Lattice Scav (POC)</title>
+<style>
+  html,body{margin:0;padding:0;background:#05020f;color:#e5e3f2;font-family:"Courier New",monospace;overflow:hidden;height:100%;}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:10px;padding:12px;box-sizing:border-box;}
+  #frame{position:relative;box-shadow:0 0 40px #00f0ff22,0 0 80px #ff2b7a22;border:2px solid #2d1b69;background:#000;}
+  canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;-ms-interpolation-mode:nearest-neighbor;}
+  #title{font-size:14px;letter-spacing:2px;color:#00f0ff;text-shadow:0 0 6px #00f0ff88;}
+  #sub{font-size:11px;color:#8a86b8;letter-spacing:1px;}
+  #keys{font-size:10px;color:#5a5678;text-align:center;line-height:1.5;max-width:768px;}
+  b{color:#ffd23f;}
+  i{color:#08c4b2;font-style:normal;}
+  .pink{color:#ff2b7a;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="title">THE TRIPTYCH OF PASSAGE</div>
+  <div id="sub">// lattice scav — proof of concept //</div>
+  <div id="frame"><canvas id="screen" width="256" height="224"></canvas></div>
+  <div id="keys">
+    <b>Arrows / WASD</b> move &nbsp; <b>SHIFT</b> <i>curtain lens</i> (hold) &nbsp; <b>Z</b> <span class="pink">frame shift</span> &nbsp; <b>X</b> <i>echo ping</i> &nbsp; <b>ENTER</b> interact / advance text &nbsp; <b>R</b> reset area
+  </div>
+</div>
+<script>
+"use strict";
+//==============================================================
+// TRIPTYCH OF PASSAGE — POC
+// Single-file, zero-asset, SNES-scale top-down adventure.
+// Canon grounding: Bridge Hunters, Curtain Theory, Relic System,
+// Rift hidden layer, VOX phase mechanics.
+//==============================================================
+
+const W = 256, H = 224, TS = 16;        // tile size 16
+const COLS = 16, ROWS = 14;             // 256x224 visible
+const SCALE = 3;
+const canvas = document.getElementById("screen");
+canvas.style.width = (W*SCALE)+"px";
+canvas.style.height = (H*SCALE)+"px";
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+//-------------------------------------------------------------
+// Palette (SNES-ish cyberpunk)
+//-------------------------------------------------------------
+const PAL = [
+  null,          // 0 transparent
+  "#05020f",     // 1 void black
+  "#0a0420",     // 2 deep space
+  "#1a1040",     // 3 dark purple
+  "#2d1b69",     // 4 mid purple
+  "#4a2fa6",     // 5 bright purple
+  "#08c4b2",     // 6 teal
+  "#00f0ff",     // 7 cyan neon
+  "#ff2b7a",     // 8 magenta
+  "#ffd23f",     // 9 gold / fragment
+  "#f5f5ff",     // 10 white
+  "#6b6b8d",     // 11 gray
+  "#12073a",     // 12 shadow
+  "#7a3fc9",     // 13 violet mid
+  "#ff7fb0",     // 14 pink highlight
+  "#00997a",     // 15 teal shadow
+];
+
+//-------------------------------------------------------------
+// Pixel-art helper: compile a string-pixel-grid into an offscreen canvas
+// "." = transparent, other chars map via a per-sprite color table
+//-------------------------------------------------------------
+function makeSprite(rows, map){
+  const h = rows.length, w = rows[0].length;
+  const c = document.createElement("canvas");
+  c.width=w; c.height=h;
+  const x = c.getContext("2d");
+  const img = x.createImageData(w,h);
+  for(let y=0;y<h;y++){
+    for(let i=0;i<w;i++){
+      const ch = rows[y][i];
+      const idx = (y*w+i)*4;
+      if(ch==="." || !map[ch]){ img.data[idx+3]=0; continue; }
+      const col = map[ch];
+      const r=parseInt(col.slice(1,3),16), g=parseInt(col.slice(3,5),16), b=parseInt(col.slice(5,7),16);
+      img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
+    }
+  }
+  x.putImageData(img,0,0);
+  return c;
+}
+
+//-------------------------------------------------------------
+// Tile sprites (16x16). Using dithered patterns for SNES feel.
+//-------------------------------------------------------------
+// Floor: mesh grid (overworld city plating)
+const T_FLOOR_CITY = makeSprite([
+  "3333333333333333",
+  "3.33333333333333",
+  "33333333333333.3",
+  "3333.33333333333",
+  "3333333333.33333",
+  "333333333333333d",
+  "3333333333333333",
+  "33.3333333333333",
+  "3333333333333333",
+  "3333333d33333333",
+  "3333333333333333",
+  "333333333333.333",
+  "33333333d3333333",
+  "3333333333333333",
+  "333d333333333333",
+  "3333333333333333",
+], {"3":PAL[3], "d":PAL[4], ".":PAL[2]});
+
+// Wall: neon-edged slab
+const T_WALL = makeSprite([
+  "7777777777777777",
+  "7ccccccccccccccc",
+  "7c555555555555c5",
+  "7c544444444445c5",
+  "7c544cccccc445c5",
+  "7c54c111111c45c5",
+  "7c54c122221c45c5",
+  "7c54c122221c45c5",
+  "7c54c122221c45c5",
+  "7c54c122221c45c5",
+  "7c54c111111c45c5",
+  "7c544cccccc445c5",
+  "7c544444444445c5",
+  "7c555555555555c5",
+  "7ccccccccccccccc",
+  "7555555555555555",
+], {"7":PAL[7],"c":PAL[6],"5":PAL[5],"4":PAL[4],"1":PAL[2],"2":PAL[12]});
+
+// Dephased barrier (cyan-phase-out) — walk through with Frame Shift
+const T_PHASE = makeSprite([
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+  "7.7.7.7.7.7.7.7.",
+  ".c.c.c.c.c.c.c.c",
+], {"7":PAL[7],"c":PAL[6],".":PAL[2]});
+
+// Curtain tile — hidden by default; visible only with lens.
+// When lens is ON, this tile is PASSABLE (it's revealed as floor).
+// When lens is OFF, it is SOLID (looks like wall).
+// We render two versions.
+const T_CURTAIN_HIDDEN = T_WALL; // looks like wall when lens is off
+const T_CURTAIN_REVEALED = makeSprite([
+  "2222222222222222",
+  "2dddddddddddddd2",
+  "2d88888888888d82",
+  "2d8eeeeeeeeee8d8",
+  "2d8e44444444e8d8",
+  "2d8e4ddddddde8d8",
+  "2d8e4d888888e8d8",
+  "2d8e4d8eeeeee8d8",
+  "2d8e4d8eeeeee8d8",
+  "2d8e4d888888e8d8",
+  "2d8e4ddddddde8d8",
+  "2d8e44444444e8d8",
+  "2d8eeeeeeeeee8d8",
+  "2d88888888888d82",
+  "2dddddddddddddd2",
+  "2222222222222222",
+], {"2":PAL[2],"d":PAL[4],"8":PAL[3],"e":PAL[13],"4":PAL[5]});
+
+// False-floor tile — looks like floor; under lens reveals as hole (solid+different)
+// For POC simplicity: only solid when lens is ON (you see it's actually void)
+const T_FALSE_FLOOR_REVEALED = makeSprite([
+  "2222222222222222",
+  "2111111111111112",
+  "2122222222222212",
+  "2122111111122212",
+  "2121211112122212",
+  "2121211112122212",
+  "2121211112122212",
+  "2121211112122212",
+  "2121211112122212",
+  "2121211112122212",
+  "2121211112122212",
+  "2121211112122212",
+  "2122111111122212",
+  "2122222222222212",
+  "2111111111111112",
+  "2222222222222222",
+], {"1":PAL[1],"2":PAL[2]});
+
+// Gate tile (overworld -> subarea) — distinct per area
+function gateTile(hue){
+  return makeSprite([
+    "7777777777777777",
+    "7ccccccccccccccc",
+    "7chhhhhhhhhhhhh7",
+    "7chHHHHHHHHHHHc7",
+    "7chH1111111111c7",
+    "7chH122222222Hc7",
+    "7chH12HHHHHH21c7",
+    "7chH12HwwwwH21c7",
+    "7chH12HwwwwH21c7",
+    "7chH12HHHHHH21c7",
+    "7chH122222222Hc7",
+    "7chH1111111111c7",
+    "7chHHHHHHHHHHHc7",
+    "7chhhhhhhhhhhhh7",
+    "7ccccccccccccccc",
+    "7555555555555555",
+  ], {"7":PAL[7],"c":PAL[6],"h":hue,"H":PAL[12],"1":PAL[3],"2":PAL[4],"w":PAL[9],"5":PAL[5]});
+}
+const T_GATE_DIG    = gateTile(PAL[9]); // gold = dig
+const T_GATE_LOK    = gateTile(PAL[8]); // magenta = LOKRANEX
+const T_GATE_RIFT   = gateTile(PAL[7]); // cyan = rift
+const T_GATE_EXIT   = gateTile(PAL[11]);
+
+// Interior floor variants
+const T_FLOOR_DIG = makeSprite([
+  "4444444444444444",
+  "4.44444444444444",
+  "44444433344444.4",
+  "44443331233344.4",
+  "4443121111123344",
+  "44312111111211.4",
+  "443121111111123.",
+  "4431211111112134",
+  "443121111111123.",
+  "44312111111211.4",
+  "4443121111123344",
+  "44443331233344.4",
+  "44444433344444.4",
+  "4.44444444444444",
+  "4444444444444444",
+  "4444444444444444",
+], {"4":PAL[4],"3":PAL[3],"1":PAL[2],"2":PAL[12],".":PAL[5]});
+
+const T_FLOOR_LOK = makeSprite([
+  "1111111111111111",
+  "18888888888888881",
+  "1877777777777781",
+  "1878888888888781",
+  "1878111111118781",
+  "1878122222218781",
+  "1878122222218781",
+  "1878122222218781",
+  "1878122222218781",
+  "1878122222218781",
+  "1878111111118781",
+  "1878888888888781",
+  "1877777777777781",
+  "18888888888888881",
+  "1111111111111111",
+  "1111111111111111",
+], {"1":PAL[1],"8":PAL[3],"7":PAL[12],"2":PAL[8]});
+
+const T_FLOOR_RIFT = makeSprite([
+  "1221331441551221",
+  "2112332443553113",
+  "1221331441551226",
+  "2112332443553114",
+  "1221331441551226",
+  "2112332443553113",
+  "1221331441551227",
+  "2112332443553118",
+  "1221331441551226",
+  "2112332443553113",
+  "1221331441551227",
+  "2112332443553114",
+  "1221331441551226",
+  "2112332443553113",
+  "1221331441551227",
+  "2112332443553114",
+], {"1":PAL[2],"2":PAL[3],"3":PAL[4],"4":PAL[5],"5":PAL[13],"6":PAL[6],"7":PAL[7],"8":PAL[8]});
+
+// Fragment pickup
+const T_FRAGMENT = makeSprite([
+  "................",
+  "................",
+  "................",
+  "........9.......",
+  ".......ee9......",
+  "......e99e9.....",
+  ".....e99999e....",
+  "....e9999999e...",
+  ".....e99999e....",
+  "......e999e.....",
+  ".......e9e......",
+  "........9.......",
+  "................",
+  "................",
+  "................",
+  "................",
+], {"9":PAL[9],"e":PAL[14],".":null});
+
+// Switch (off)
+const T_SWITCH_OFF = makeSprite([
+  "................",
+  "................",
+  "....3333333.....",
+  "...355555553....",
+  "..35ccccccc53...",
+  "..3c1111111c3...",
+  "..3c111b111c3...",
+  "..3c11bbb11c3...",
+  "..3c111b111c3...",
+  "..3c1111111c3...",
+  "..35ccccccc53...",
+  "...355555553....",
+  "....3333333.....",
+  "................",
+  "................",
+  "................",
+], {"3":PAL[3],"5":PAL[4],"c":PAL[2],"1":PAL[12],"b":PAL[11],".":null});
+
+// Switch (on)
+const T_SWITCH_ON = makeSprite([
+  "................",
+  "................",
+  "....7777777.....",
+  "...766666667....",
+  "..76ccccccc67...",
+  "..6cccccccccc...",
+  "..6ccc777ccc6...",
+  "..6cc77777cc6...",
+  "..6ccc777ccc6...",
+  "..6cccccccccc...",
+  "..76ccccccc67...",
+  "...766666667....",
+  "....7777777.....",
+  "..c.c.c.c.c.c...",
+  "................",
+  "................",
+], {"7":PAL[7],"6":PAL[6],"c":PAL[9],".":null});
+
+// Door (closed)
+const T_DOOR = makeSprite([
+  "7777777777777777",
+  "7eeeeeeeeeeeeee7",
+  "7e44444444444e7.",
+  "7e4111111111e47.",
+  "7e4122222221e47.",
+  "7e4128888821e47.",
+  "7e4128888821e47.",
+  "7e4128888821e47.",
+  "7e4128888821e47.",
+  "7e4128888821e47.",
+  "7e4128888821e47.",
+  "7e4122222221e47.",
+  "7e4111111111e47.",
+  "7e44444444444e7.",
+  "7eeeeeeeeeeeeee7",
+  "7777777777777777",
+], {"7":PAL[7],"e":PAL[5],"4":PAL[4],"1":PAL[3],"2":PAL[2],"8":PAL[12]});
+
+// Echo Hunter patrol sprite (16x16) — reptilian silhouette, thin-curtain savant menace
+function patrolSprite(){
+  return makeSprite([
+    ".......88.......",
+    "......8778......",
+    ".....877778.....",
+    ".....811118.....",
+    "....87877878....",
+    "....87111178....",
+    "....8711117 8...",
+    "....87111178....",
+    "....87787778....",
+    "....81811818....",
+    "...88..88..88...",
+    "..8.....8..8....",
+    "................",
+    "................",
+    "................",
+    "................",
+  ], {"8":PAL[8],"7":PAL[14],"1":PAL[12],".":null," ":null});
+}
+const T_PATROL = patrolSprite();
+
+// Player sprite (Archivist-7) — 4 directions, 2 frames each = 8 sprites (16x16)
+// We'll draw a simple hooded figure with neon trim.
+const PLAYER_SPRITES = {};
+{
+  const hood=PAL[5], coat=PAL[3], trim=PAL[7], face=PAL[14], boot=PAL[2];
+  function mk(rows){ return makeSprite(rows,{"H":hood,"C":coat,"T":trim,"F":face,"B":boot,".":null}); }
+  // facing down (standing + step)
+  PLAYER_SPRITES["d0"] = mk([
+    "....HHHHHH......",
+    "...HTTTTTTH.....",
+    "...HTFFFFFTH....",
+    "...HTFFFFFTH....",
+    "...HTFFFFFTH....",
+    "....HTTTTTH.....",
+    "...CCCCCCCCC....",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCCCCCCCCCC...",
+    "...CCCCCCCCC....",
+    "....CC...CC.....",
+    "....BB...BB.....",
+    "....BB...BB.....",
+    "................",
+  ]);
+  PLAYER_SPRITES["d1"] = mk([
+    "....HHHHHH......",
+    "...HTTTTTTH.....",
+    "...HTFFFFFTH....",
+    "...HTFFFFFTH....",
+    "...HTFFFFFTH....",
+    "....HTTTTTH.....",
+    "...CCCCCCCCC....",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCCCCCCCCCC...",
+    "...CCCCCCCCC....",
+    "...CCC...CC.....",
+    "...BB....BB.....",
+    "...BB.....B.....",
+    "................",
+  ]);
+  // up
+  PLAYER_SPRITES["u0"] = mk([
+    "....HHHHHH......",
+    "...HHHHHHHH.....",
+    "...HHHHHHHH.....",
+    "...HHHHHHHH.....",
+    "...HHHHHHHH.....",
+    "....HHHHHH......",
+    "...CCCCCCCCC....",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCCCCCCCCCC...",
+    "...CCCCCCCCC....",
+    "....CC...CC.....",
+    "....BB...BB.....",
+    "....BB...BB.....",
+    "................",
+  ]);
+  PLAYER_SPRITES["u1"] = mk([
+    "....HHHHHH......",
+    "...HHHHHHHH.....",
+    "...HHHHHHHH.....",
+    "...HHHHHHHH.....",
+    "...HHHHHHHH.....",
+    "....HHHHHH......",
+    "...CCCCCCCCC....",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCTCCCCCTCC...",
+    "..CCCCCCCCCCC...",
+    "...CCCCCCCCC....",
+    "...CC...CCC.....",
+    "...BB....BB.....",
+    "...B.....BB.....",
+    "................",
+  ]);
+  // left
+  PLAYER_SPRITES["l0"] = mk([
+    "....HHHHH.......",
+    "...HTTTTHH......",
+    "...HTFFTTH......",
+    "...HTFFFTH......",
+    "...HTFFFTH......",
+    "....HTTTH.......",
+    "...CCCCCC.......",
+    "..CCTCCCCC......",
+    "..CCTCCCCC......",
+    "..CCTCCCCC......",
+    "..CCCCCCCC......",
+    "...CCCCCC.......",
+    "....CC.CC.......",
+    "....BB.BB.......",
+    "....BB.BB.......",
+    "................",
+  ]);
+  PLAYER_SPRITES["l1"] = mk([
+    "....HHHHH.......",
+    "...HTTTTHH......",
+    "...HTFFTTH......",
+    "...HTFFFTH......",
+    "...HTFFFTH......",
+    "....HTTTH.......",
+    "...CCCCCC.......",
+    "..CCTCCCCC......",
+    "..CCTCCCCC......",
+    "..CCTCCCCC......",
+    "..CCCCCCCC......",
+    "...CCCCCC.......",
+    "....CCCC........",
+    "....BBB.........",
+    "....BB..........",
+    "................",
+  ]);
+  // right (mirror of left — easier to just author)
+  PLAYER_SPRITES["r0"] = mk([
+    ".......HHHHH....",
+    "......HHTTTTH...",
+    "......HTTFFTH...",
+    "......HTFFFTH...",
+    "......HTFFFTH...",
+    ".......HTTTH....",
+    ".......CCCCCC...",
+    "......CCCCCTCC..",
+    "......CCCCCTCC..",
+    "......CCCCCTCC..",
+    "......CCCCCCCC..",
+    ".......CCCCCC...",
+    ".......CC.CC....",
+    ".......BB.BB....",
+    ".......BB.BB....",
+    "................",
+  ]);
+  PLAYER_SPRITES["r1"] = mk([
+    ".......HHHHH....",
+    "......HHTTTTH...",
+    "......HTTFFTH...",
+    "......HTFFFTH...",
+    "......HTFFFTH...",
+    ".......HTTTH....",
+    ".......CCCCCC...",
+    "......CCCCCTCC..",
+    "......CCCCCTCC..",
+    "......CCCCCTCC..",
+    "......CCCCCCCC..",
+    ".......CCCCCC...",
+    "........CCCC....",
+    ".........BBB....",
+    "..........BB....",
+    "................",
+  ]);
+}
+
+//-------------------------------------------------------------
+// Maps. Grid of characters -> tile + metadata.
+// Legend:
+//   ' '  floor (theme-dependent)
+//   '#'  wall
+//   'G'  gate to Dig (overworld only)
+//   'L'  gate to LOKRANEX sublevel
+//   'R'  gate to Rift seam
+//   'X'  gate back to overworld
+//   'P'  player spawn marker
+//   'F'  fragment pickup
+//   'S'  switch (toggles linked door)
+//   'D'  door (opens when any switch in area active)
+//   '~'  phase barrier (frame shift to pass)
+//   'C'  curtain tile (hidden by default; walkable only when lens ON)
+//   '*'  false-floor (walkable only when lens OFF; void with lens)
+//   'E'  patrol spawn
+//   'H'  home / NPC (mentor)
+//   '='  sign
+//-------------------------------------------------------------
+
+const MAP_OVERWORLD = [
+  "################",
+  "#   H          #",
+  "#   =          #",
+  "#       P      #",
+  "#              #",
+  "#   ###  ####  #",
+  "#   #       #  #",
+  "#   #   G   #  #",  // gate to Dig
+  "#   #       #  #",
+  "#   ###  ####  #",
+  "#              #",
+  "#    L      R  #",  // gate to LOKRANEX, gate to Rift
+  "#              #",
+  "################",
+];
+
+const MAP_DIG = [
+  "################",
+  "#      X       #",
+  "#              #",
+  "#   ########   #",
+  "#   #      #   #",
+  "#   # CCCC #   #",
+  "#   # C  C #   #",
+  "#   S C  C D F #",
+  "#   # C  C #   #",
+  "#   # CCCC #   #",
+  "#   #      #   #",
+  "#   ########   #",
+  "#              #",
+  "################",
+];
+// Notes on Dig:
+//  - A switch S is separated from door D by a curtain maze.
+//  - The curtain path (CCCC ring) blocks unless lens ON.
+//  - Player must walk THROUGH the curtain ring with lens held to reach S,
+//    then back to D (D opens when S active) to reach F.
+//  - No patrols. Pure puzzle. This demonstrates Curtain Lens as core mechanic.
+
+const MAP_LOK = [
+  "################",
+  "#      X       #",
+  "#              #",
+  "#  ###########  ".replace(/ $/,"#"),
+  "#  #  E       # ".replace(/ $/,"#"),
+  "#  #    ###   # ".replace(/ $/,"#"),
+  "#  #~~~~# #   # ".replace(/ $/,"#"),
+  "#  #    # #   # ".replace(/ $/,"#"),
+  "#  #    # # F # ".replace(/ $/,"#"),
+  "#  #  E # #   # ".replace(/ $/,"#"),
+  "#  ######## ### ".replace(/ $/,"#"),
+  "#               ".replace(/ $/,"#"),
+  "#               ".replace(/ $/,"#"),
+  "################",
+];
+// Notes on LOKRANEX:
+//  - Two patrols. If they see you, knockback to entry.
+//  - Phase barrier ~~~~ blocks a shortcut through the room.
+//  - Without Frame Shift, player would have to sneak around patrols.
+//  - With Frame Shift (unlocked from Fragment 1), they can phase through.
+
+const MAP_RIFT = [
+  "################",
+  "#      X       #",
+  "#              #",
+  "#  *********   #",
+  "#  *CCCCCCC*   #",
+  "#  *C     C*   #",
+  "#  *C CCC C*   #",
+  "#  *C C F C*   #",
+  "#  *C CCC C*   #",
+  "#  *C     C*   #",
+  "#  *CCCCCSC*   #",
+  "#  *********   #",
+  "#              #",
+  "################",
+];
+// Notes on Rift:
+//  - The whole room is surrounded by false-floor (*), which is solid when lens OFF and void when lens ON.
+//  - Interior walls are curtain (C), solid when lens OFF, open when lens ON.
+//  - Player must oscillate: lens OFF to cross void (false-floor is solid), lens ON to pass curtain walls.
+//    This literally IS Curtain Theory: "consciousness oscillates between operator and self."
+//  - Echo Ping (from Fragment 2) activates switch S, which... actually in this POC,
+//    reaching F is the win. Keep it simple.
+
+//-------------------------------------------------------------
+// Area registry
+//-------------------------------------------------------------
+const AREAS = {
+  overworld: {
+    name: "The Lattice — SkyCity Scav-Sector",
+    map: MAP_OVERWORLD,
+    theme: "city",
+    floor: T_FLOOR_CITY,
+    music: null,
+    intro: "The mesh hums under your boots. RELOS is stable. Three signal anomalies — three Bridge Fragments — have surfaced in the ruins. Find them. Bring them home."
+  },
+  dig: {
+    name: "Echo Hunter Dig Site — Sub-level 3",
+    map: MAP_DIG,
+    theme: "dig",
+    floor: T_FLOOR_DIG,
+    intro: "Pre-human. The Hunters' architecture has no hinges. The walls are thinking. Your lens perceives what the Hunters' thin curtain could not hide.",
+    fragmentName: "BRIDGE FRAGMENT // PONT",
+    fragmentUnlocks: "frameShift",
+    fragmentText: "FRAGMENT PONT bonded. ABILITY: FRAME SHIFT unlocked.\n\nYou can now phase through dephased barriers. Press Z."
+  },
+  lok: {
+    name: "LOKRANEX Sublevel — Bridge Audit Floor",
+    map: MAP_LOK,
+    theme: "lok",
+    floor: T_FLOOR_LOK,
+    intro: "LOKRANEX scanners sweep this floor. Do not be seen. The corporation does not kill Hunters — it files them.",
+    fragmentName: "BRIDGE FRAGMENT // GESHER",
+    fragmentUnlocks: "echoPing",
+    fragmentText: "FRAGMENT GESHER bonded. ABILITY: ECHO PING unlocked.\n\nPress X to pulse. Reveals patrols through walls. Triggers resonance switches."
+  },
+  rift: {
+    name: "The Rift Seam — Geometry Unstable",
+    map: MAP_RIFT,
+    theme: "rift",
+    floor: T_FLOOR_RIFT,
+    intro: "This place does not agree with itself. Curtain up — the walls yield. Curtain down — the floor holds. Oscillate. That is the only way through.",
+    fragmentName: "BRIDGE FRAGMENT // PUL",
+    fragmentUnlocks: null,
+    fragmentText: "FRAGMENT PUL bonded. The Triptych resonates.\n\nThree Bridges. One to cross. One to lose. One to find your way home."
+  },
+};
+
+//-------------------------------------------------------------
+// Input
+//-------------------------------------------------------------
+const keys = {};
+const keyPressed = {};
+addEventListener("keydown", e=>{
+  const k = e.key.toLowerCase();
+  if(!keys[k]) keyPressed[k] = true;
+  keys[k] = true;
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
+});
+addEventListener("keyup", e=>{ keys[e.key.toLowerCase()] = false; });
+function consumeKey(k){ const v = keyPressed[k]; keyPressed[k] = false; return v; }
+
+//-------------------------------------------------------------
+// Game state
+//-------------------------------------------------------------
+const game = {
+  area: "overworld",
+  player: { x: 6*TS, y: 3*TS, dir: "d", frame: 0, anim: 0, moving: false },
+  lensOn: false,
+  abilities: { curtainLens: true, frameShift: false, echoPing: false },
+  fragments: { dig: false, lok: false, rift: false },
+  pings: [],          // {x,y,r,life}
+  patrols: [],        // {x,y,vx,vy,path,t}
+  switches: {},       // id -> bool
+  doorsOpen: {},      // areaKey -> bool
+  phaseShiftActive: 0,
+  dialog: null,       // {lines:[], i, done:false}
+  textState: null,    // 'intro'
+  flash: 0,
+  won: false,
+  tick: 0,
+};
+
+//-------------------------------------------------------------
+// Dialog system
+//-------------------------------------------------------------
+function showDialog(text){
+  game.dialog = { text: text, cursor: 0, done: false };
+}
+function tickDialog(){
+  if(!game.dialog) return;
+  if(game.tick % 1 === 0 && game.dialog.cursor < game.dialog.text.length){
+    game.dialog.cursor += 2;
+    if(game.dialog.cursor >= game.dialog.text.length){
+      game.dialog.cursor = game.dialog.text.length;
+      game.dialog.done = true;
+    }
+  }
+  if(consumeKey("enter") || consumeKey(" ")){
+    if(!game.dialog.done){
+      game.dialog.cursor = game.dialog.text.length;
+      game.dialog.done = true;
+    } else {
+      game.dialog = null;
+    }
+  }
+}
+
+//-------------------------------------------------------------
+// Area loading
+//-------------------------------------------------------------
+function loadArea(key, spawn){
+  game.area = key;
+  const A = AREAS[key];
+  // spawn
+  if(spawn){
+    game.player.x = spawn.x*TS; game.player.y = spawn.y*TS;
+  } else {
+    // find P or X
+    const m = A.map;
+    let found=false;
+    for(let y=0;y<m.length && !found;y++){
+      for(let x=0;x<m[y].length;x++){
+        if(m[y][x]==="P"){ game.player.x=x*TS; game.player.y=y*TS; found=true; break; }
+      }
+    }
+    if(!found){
+      // default near X
+      for(let y=0;y<m.length && !found;y++){
+        for(let x=0;x<m[y].length;x++){
+          if(m[y][x]==="X"){ game.player.x=x*TS; game.player.y=(y+1)*TS; found=true; break; }
+        }
+      }
+    }
+  }
+  // patrols
+  game.patrols = [];
+  game.switches = {};
+  const m = A.map;
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<m[y].length;x++){
+      const c = m[y][x];
+      if(c==="E"){
+        game.patrols.push({
+          ox:x*TS, oy:y*TS,
+          x:x*TS, y:y*TS,
+          dir:1, axis:"x",
+          range: 3*TS,
+          t: Math.random()*100,
+          alert:0,
+        });
+      } else if(c==="S"){
+        game.switches[x+","+y] = false;
+      }
+    }
+  }
+  if(A.intro && key!=="overworld"){
+    showDialog(A.intro);
+  }
+  game.flash = 10;
+}
+
+//-------------------------------------------------------------
+// Collision & tile queries
+//-------------------------------------------------------------
+function tileAt(ax, ay){
+  const A = AREAS[game.area];
+  const m = A.map;
+  const tx = Math.floor(ax/TS), ty = Math.floor(ay/TS);
+  if(ty<0||ty>=m.length||tx<0||tx>=m[0].length) return "#";
+  return m[ty][tx];
+}
+function isSolid(ch){
+  if(ch==="#") return true;
+  if(ch==="~") return game.phaseShiftActive<=0;
+  if(ch==="C") return !game.lensOn;           // curtain: solid when lens off
+  if(ch==="*") return game.lensOn;            // false-floor: void when lens on
+  if(ch==="D"){
+    return !game.doorsOpen[game.area];
+  }
+  return false;
+}
+function canStand(px, py){
+  // character hitbox 10x10 at center-bottom of sprite
+  const boxes = [
+    [px+3, py+6],
+    [px+12, py+6],
+    [px+3, py+14],
+    [px+12, py+14],
+  ];
+  for(const [x,y] of boxes){
+    if(isSolid(tileAt(x,y))) return false;
+  }
+  return true;
+}
+
+//-------------------------------------------------------------
+// Interaction: step on tile triggers
+//-------------------------------------------------------------
+function onPlayerTile(){
+  const p = game.player;
+  const cx = Math.floor((p.x+8)/TS), cy = Math.floor((p.y+12)/TS);
+  const A = AREAS[game.area];
+  const ch = A.map[cy] ? A.map[cy][cx] : " ";
+  // gates
+  if(game.area==="overworld"){
+    if(ch==="G"){ loadArea("dig"); return; }
+    if(ch==="L"){ loadArea("lok"); return; }
+    if(ch==="R"){ loadArea("rift"); return; }
+  } else {
+    if(ch==="X"){
+      loadArea("overworld", {x: p._returnX||6, y: p._returnY||4});
+      return;
+    }
+  }
+  // fragment pickup
+  if(ch==="F"){
+    const areaKey = game.area;
+    if(!game.fragments[areaKey]){
+      game.fragments[areaKey] = true;
+      const unlock = A.fragmentUnlocks;
+      if(unlock) game.abilities[unlock] = true;
+      // replace F with floor in map (persist via mutation)
+      replaceTile(cx, cy, " ");
+      showDialog(A.fragmentText);
+      // check win
+      if(game.fragments.dig && game.fragments.lok && game.fragments.rift){
+        setTimeout(()=>{ game.won = true; }, 100);
+      }
+    }
+  }
+  // switch
+  if(ch==="S"){
+    const key = cx+","+cy;
+    if(!game.switches[key]){
+      game.switches[key] = true;
+      game.doorsOpen[game.area] = true;
+    }
+  }
+}
+function replaceTile(x,y,ch){
+  const A = AREAS[game.area];
+  const row = A.map[y];
+  A.map[y] = row.substring(0,x)+ch+row.substring(x+1);
+}
+
+//-------------------------------------------------------------
+// Player update
+//-------------------------------------------------------------
+function updatePlayer(){
+  if(game.dialog || game.won) return;
+  const p = game.player;
+  const sp = 1.2;
+  let dx=0, dy=0;
+  if(keys["arrowleft"]||keys["a"]) { dx=-sp; p.dir="l"; }
+  else if(keys["arrowright"]||keys["d"]) { dx=sp; p.dir="r"; }
+  else if(keys["arrowup"]||keys["w"]) { dy=-sp; p.dir="u"; }
+  else if(keys["arrowdown"]||keys["s"]) { dy=sp; p.dir="d"; }
+
+  // lens toggle (hold)
+  game.lensOn = !!keys["shift"];
+
+  // frame shift
+  if(consumeKey("z") && game.abilities.frameShift){
+    game.phaseShiftActive = 45; // ~0.75s
+  }
+  if(game.phaseShiftActive>0) game.phaseShiftActive--;
+
+  // echo ping
+  if(consumeKey("x") && game.abilities.echoPing){
+    game.pings.push({ x:p.x+8, y:p.y+12, r:0, life:40 });
+    // trigger any switch within 4 tiles
+    const A = AREAS[game.area];
+    for(let y=0;y<A.map.length;y++){
+      for(let xi=0;xi<A.map[y].length;xi++){
+        if(A.map[y][xi]==="S"){
+          const dx=(xi*TS+8)-(p.x+8), dy=(y*TS+8)-(p.y+12);
+          if(dx*dx+dy*dy < (4*TS)*(4*TS)){
+            const key = xi+","+y;
+            if(!game.switches[key]){
+              game.switches[key] = true;
+              game.doorsOpen[game.area] = true;
+            }
+          }
+        }
+      }
+    }
+  }
+  // reset area
+  if(consumeKey("r")){
+    loadArea(game.area);
+    return;
+  }
+
+  // move with per-axis collision
+  if(dx){
+    const nx = p.x + dx;
+    if(canStand(nx, p.y)) p.x = nx;
+  }
+  if(dy){
+    const ny = p.y + dy;
+    if(canStand(p.x, ny)) p.y = ny;
+  }
+
+  p.moving = (dx!==0 || dy!==0);
+  if(p.moving) p.anim++;
+  p.frame = Math.floor(p.anim/10)%2;
+
+  onPlayerTile();
+}
+
+//-------------------------------------------------------------
+// Patrols
+//-------------------------------------------------------------
+function updatePatrols(){
+  if(game.dialog || game.won) return;
+  const p = game.player;
+  for(const pa of game.patrols){
+    pa.t++;
+    // simple horizontal patrol
+    pa.x += pa.dir * 0.5;
+    if(pa.x > pa.ox + pa.range) pa.dir = -1;
+    if(pa.x < pa.ox - pa.range) pa.dir = 1;
+    // detection
+    const dx = (p.x+8)-(pa.x+8), dy = (p.y+8)-(pa.y+8);
+    const dist2 = dx*dx+dy*dy;
+    if(dist2 < (3*TS)*(3*TS)){
+      pa.alert = Math.min(60, pa.alert+2);
+      if(pa.alert>=60){
+        // spotted — reset player to entry
+        game.flash = 20;
+        loadArea(game.area);
+        return;
+      }
+    } else {
+      pa.alert = Math.max(0, pa.alert-1);
+    }
+  }
+  // ping lifetime
+  for(const p of game.pings){ p.r += 2; p.life--; }
+  game.pings = game.pings.filter(p=>p.life>0);
+}
+
+//-------------------------------------------------------------
+// Rendering
+//-------------------------------------------------------------
+function drawTile(ch, x, y){
+  const A = AREAS[game.area];
+  // background floor first
+  ctx.drawImage(A.floor, x, y);
+  switch(ch){
+    case "#": ctx.drawImage(T_WALL, x, y); break;
+    case "~":
+      if(game.phaseShiftActive<=0) ctx.drawImage(T_PHASE, x, y);
+      else { /* passable: shimmer only */
+        ctx.globalAlpha = 0.3; ctx.drawImage(T_PHASE, x, y); ctx.globalAlpha = 1;
+      }
+      break;
+    case "C":
+      if(game.lensOn) ctx.drawImage(T_CURTAIN_REVEALED, x, y);
+      else ctx.drawImage(T_CURTAIN_HIDDEN, x, y);
+      break;
+    case "*":
+      if(game.lensOn) ctx.drawImage(T_FALSE_FLOOR_REVEALED, x, y);
+      // else looks like normal floor (already drawn)
+      break;
+    case "G": ctx.drawImage(T_GATE_DIG, x, y); break;
+    case "L": ctx.drawImage(T_GATE_LOK, x, y); break;
+    case "R": ctx.drawImage(T_GATE_RIFT, x, y); break;
+    case "X": ctx.drawImage(T_GATE_EXIT, x, y); break;
+    case "F": ctx.drawImage(T_FRAGMENT, x, y); break;
+    case "S": {
+      const key = Math.floor(x/TS)+","+Math.floor(y/TS);
+      ctx.drawImage(game.switches[key] ? T_SWITCH_ON : T_SWITCH_OFF, x, y);
+      break;
+    }
+    case "D":
+      if(!game.doorsOpen[game.area]) ctx.drawImage(T_DOOR, x, y);
+      break;
+    case "H":
+      // Mentor NPC — draw with different color
+      ctx.fillStyle = PAL[8];
+      ctx.fillRect(x+4, y+2, 8, 10);
+      ctx.fillStyle = PAL[14];
+      ctx.fillRect(x+5, y+3, 6, 3);
+      ctx.fillStyle = PAL[2];
+      ctx.fillRect(x+4, y+12, 8, 4);
+      break;
+    case "=": break;
+    case "E": break; // drawn separately
+    case "P": break;
+  }
+}
+
+function drawMap(){
+  const A = AREAS[game.area];
+  for(let y=0;y<A.map.length;y++){
+    for(let x=0;x<A.map[y].length;x++){
+      drawTile(A.map[y][x], x*TS, y*TS);
+    }
+  }
+}
+
+function drawPatrols(){
+  for(const pa of game.patrols){
+    ctx.drawImage(T_PATROL, Math.round(pa.x), Math.round(pa.y));
+    // alert indicator
+    if(pa.alert>0){
+      ctx.fillStyle = pa.alert>40 ? PAL[7] : PAL[8];
+      ctx.fillRect(Math.round(pa.x)+6, Math.round(pa.y)-4, 4, 4);
+    }
+    // detection cone (faint) visible under echo ping
+    // handled by ping overlay
+  }
+}
+
+function drawPlayer(){
+  const p = game.player;
+  const key = p.dir + (p.moving ? p.frame : 0);
+  const spr = PLAYER_SPRITES[key] || PLAYER_SPRITES[p.dir+"0"];
+  ctx.drawImage(spr, Math.round(p.x), Math.round(p.y));
+  // lens glow
+  if(game.lensOn){
+    ctx.strokeStyle = PAL[7];
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(p.x+8, p.y+8, 6 + Math.sin(game.tick*0.3), 0, Math.PI*2);
+    ctx.stroke();
+  }
+  // frame shift glow
+  if(game.phaseShiftActive>0){
+    ctx.strokeStyle = PAL[6];
+    ctx.lineWidth = 1;
+    ctx.strokeRect(p.x-1, p.y-1, 18, 18);
+  }
+}
+
+function drawPings(){
+  for(const pg of game.pings){
+    ctx.strokeStyle = PAL[7];
+    ctx.globalAlpha = pg.life/40;
+    ctx.beginPath();
+    ctx.arc(pg.x, pg.y, pg.r, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // when ping active, reveal patrols through walls (already drawn on top)
+}
+
+//-------------------------------------------------------------
+// HUD
+//-------------------------------------------------------------
+function drawHUD(){
+  // top bar
+  ctx.fillStyle = PAL[1];
+  ctx.fillRect(0, 0, W, 10);
+  ctx.fillStyle = PAL[7];
+  ctx.font = "6px monospace";
+  // area name
+  ctx.fillStyle = PAL[10];
+  drawText(AREAS[game.area].name.toUpperCase(), 3, 7, PAL[7]);
+  // fragments
+  const fcount = (game.fragments.dig?1:0)+(game.fragments.lok?1:0)+(game.fragments.rift?1:0);
+  drawText("FRAG "+fcount+"/3", W-40, 7, PAL[9]);
+
+  // ability icons bottom-left
+  const icons = [
+    { on: game.abilities.curtainLens, label:"L", active: game.lensOn, color: PAL[7] },
+    { on: game.abilities.frameShift,  label:"Z", active: game.phaseShiftActive>0, color: PAL[6] },
+    { on: game.abilities.echoPing,    label:"X", active: false, color: PAL[8] },
+  ];
+  for(let i=0;i<icons.length;i++){
+    const x = 3 + i*14, y = H-11;
+    ctx.fillStyle = icons[i].on ? PAL[3] : PAL[2];
+    ctx.fillRect(x, y, 10, 8);
+    ctx.strokeStyle = icons[i].active ? icons[i].color : (icons[i].on ? PAL[11] : PAL[12]);
+    ctx.strokeRect(x+0.5, y+0.5, 9, 7);
+    drawText(icons[i].label, x+3, y+6, icons[i].on ? icons[i].color : PAL[12]);
+  }
+}
+
+//-------------------------------------------------------------
+// Tiny bitmap text
+//-------------------------------------------------------------
+const FONT = {
+  "A":["01110","10001","10001","11111","10001","10001","10001"],
+  "B":["11110","10001","10001","11110","10001","10001","11110"],
+  "C":["01111","10000","10000","10000","10000","10000","01111"],
+  "D":["11110","10001","10001","10001","10001","10001","11110"],
+  "E":["11111","10000","10000","11110","10000","10000","11111"],
+  "F":["11111","10000","10000","11110","10000","10000","10000"],
+  "G":["01111","10000","10000","10111","10001","10001","01111"],
+  "H":["10001","10001","10001","11111","10001","10001","10001"],
+  "I":["11111","00100","00100","00100","00100","00100","11111"],
+  "J":["00111","00010","00010","00010","00010","10010","01100"],
+  "K":["10001","10010","10100","11000","10100","10010","10001"],
+  "L":["10000","10000","10000","10000","10000","10000","11111"],
+  "M":["10001","11011","10101","10101","10001","10001","10001"],
+  "N":["10001","11001","10101","10011","10001","10001","10001"],
+  "O":["01110","10001","10001","10001","10001","10001","01110"],
+  "P":["11110","10001","10001","11110","10000","10000","10000"],
+  "Q":["01110","10001","10001","10001","10101","10010","01101"],
+  "R":["11110","10001","10001","11110","10100","10010","10001"],
+  "S":["01111","10000","10000","01110","00001","00001","11110"],
+  "T":["11111","00100","00100","00100","00100","00100","00100"],
+  "U":["10001","10001","10001","10001","10001","10001","01110"],
+  "V":["10001","10001","10001","10001","10001","01010","00100"],
+  "W":["10001","10001","10001","10101","10101","11011","10001"],
+  "X":["10001","10001","01010","00100","01010","10001","10001"],
+  "Y":["10001","10001","01010","00100","00100","00100","00100"],
+  "Z":["11111","00001","00010","00100","01000","10000","11111"],
+  "0":["01110","10001","10011","10101","11001","10001","01110"],
+  "1":["00100","01100","00100","00100","00100","00100","01110"],
+  "2":["01110","10001","00001","00010","00100","01000","11111"],
+  "3":["11110","00001","00001","01110","00001","00001","11110"],
+  "4":["00010","00110","01010","10010","11111","00010","00010"],
+  "5":["11111","10000","11110","00001","00001","10001","01110"],
+  "6":["00110","01000","10000","11110","10001","10001","01110"],
+  "7":["11111","00001","00010","00100","01000","01000","01000"],
+  "8":["01110","10001","10001","01110","10001","10001","01110"],
+  "9":["01110","10001","10001","01111","00001","00010","01100"],
+  " ":["00000","00000","00000","00000","00000","00000","00000"],
+  ".":["00000","00000","00000","00000","00000","00100","00100"],
+  ",":["00000","00000","00000","00000","00100","00100","01000"],
+  ":":["00000","00100","00100","00000","00100","00100","00000"],
+  "/":["00001","00010","00010","00100","01000","01000","10000"],
+  "-":["00000","00000","00000","11111","00000","00000","00000"],
+  "!":["00100","00100","00100","00100","00100","00000","00100"],
+  "?":["01110","10001","00001","00010","00100","00000","00100"],
+  "'":["00100","00100","00000","00000","00000","00000","00000"],
+  "(":["00010","00100","01000","01000","01000","00100","00010"],
+  ")":["01000","00100","00010","00010","00010","00100","01000"],
+  "_":["00000","00000","00000","00000","00000","00000","11111"],
+  "+":["00000","00100","00100","11111","00100","00100","00000"],
+  "#":["01010","11111","01010","01010","11111","01010","00000"],
+  "\n":null,
+};
+function drawText(str, x, y, color){
+  color = color || PAL[10];
+  ctx.fillStyle = color;
+  let cx = x, cy = y-6;
+  for(const ch of str.toUpperCase()){
+    if(ch==="\n"){ cy += 9; cx = x; continue; }
+    const g = FONT[ch] || FONT[" "];
+    if(!g) continue;
+    for(let yy=0;yy<7;yy++){
+      const row = g[yy];
+      for(let xx=0;xx<5;xx++){
+        if(row[xx]==="1") ctx.fillRect(cx+xx, cy+yy, 1, 1);
+      }
+    }
+    cx += 6;
+  }
+}
+function wrapText(str, maxChars){
+  const out=[];
+  for(const para of str.split("\n")){
+    const words = para.split(" ");
+    let line="";
+    for(const w of words){
+      if((line+" "+w).trim().length > maxChars){ out.push(line); line=w; }
+      else line = line ? line+" "+w : w;
+    }
+    if(line) out.push(line);
+    if(para==="") out.push("");
+  }
+  return out;
+}
+
+//-------------------------------------------------------------
+// Dialog render
+//-------------------------------------------------------------
+function drawDialog(){
+  if(!game.dialog) return;
+  const bx=8, by=H-72, bw=W-16, bh=60;
+  ctx.fillStyle = PAL[1];
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = PAL[7];
+  ctx.strokeRect(bx+0.5, by+0.5, bw-1, bh-1);
+  ctx.strokeStyle = PAL[6];
+  ctx.strokeRect(bx+2.5, by+2.5, bw-5, bh-5);
+
+  const shown = game.dialog.text.substring(0, game.dialog.cursor);
+  const lines = wrapText(shown, 38);
+  let yy = by+10;
+  for(let i=0;i<Math.min(lines.length,5);i++){
+    drawText(lines[i], bx+6, yy, PAL[10]);
+    yy += 9;
+  }
+  if(game.dialog.done){
+    if((game.tick>>3)&1) drawText("...", bw-6, by+bh-6, PAL[7]);
+  }
+}
+
+//-------------------------------------------------------------
+// Win screen
+//-------------------------------------------------------------
+function drawWin(){
+  ctx.fillStyle = "rgba(5,2,15,0.88)";
+  ctx.fillRect(0,0,W,H);
+  drawText("THE TRIPTYCH RESONATES", 32, 60, PAL[7]);
+  drawText("THREE BRIDGES", 78, 78, PAL[9]);
+  drawText("ONE TO CROSS.", 60, 100, PAL[10]);
+  drawText("ONE TO LOSE.",  60, 112, PAL[10]);
+  drawText("ONE TO FIND YOUR WAY HOME.", 30, 124, PAL[10]);
+  drawText("- END OF PROOF OF CONCEPT -", 30, 160, PAL[8]);
+  drawText("PRESS R TO REPLAY", 60, 180, PAL[11]);
+  if(consumeKey("r")){
+    // reset
+    game.fragments = {dig:false,lok:false,rift:false};
+    game.abilities = {curtainLens:true, frameShift:false, echoPing:false};
+    game.doorsOpen = {};
+    // rebuild maps (restore F tiles)
+    AREAS.dig.map  = MAP_DIG_SRC.slice();
+    AREAS.lok.map  = MAP_LOK_SRC.slice();
+    AREAS.rift.map = MAP_RIFT_SRC.slice();
+    game.won = false;
+    loadArea("overworld");
+  }
+}
+
+// snapshot original maps so we can reset after pickup
+const MAP_DIG_SRC  = MAP_DIG.slice();
+const MAP_LOK_SRC  = MAP_LOK.slice();
+const MAP_RIFT_SRC = MAP_RIFT.slice();
+
+//-------------------------------------------------------------
+// Main loop
+//-------------------------------------------------------------
+function frame(){
+  game.tick++;
+
+  // update
+  tickDialog();
+  if(!game.dialog && !game.won){
+    updatePlayer();
+    updatePatrols();
+  }
+
+  // render
+  ctx.fillStyle = PAL[2];
+  ctx.fillRect(0,0,W,H);
+
+  drawMap();
+  drawPatrols();
+  drawPlayer();
+  drawPings();
+
+  // lens vignette overlay when active
+  if(game.lensOn){
+    ctx.fillStyle = "rgba(0,240,255,0.04)";
+    ctx.fillRect(0,0,W,H);
+    // scanlines
+    ctx.fillStyle = "rgba(0,240,255,0.06)";
+    for(let y=0;y<H;y+=2) ctx.fillRect(0,y,W,1);
+  }
+
+  drawHUD();
+  drawDialog();
+
+  // flash on area change
+  if(game.flash>0){
+    ctx.fillStyle = "rgba(255,255,255,"+(game.flash/20)+")";
+    ctx.fillRect(0,0,W,H);
+    game.flash--;
+  }
+
+  if(game.won) drawWin();
+
+  requestAnimationFrame(frame);
+}
+
+//-------------------------------------------------------------
+// Boot
+//-------------------------------------------------------------
+loadArea("overworld");
+showDialog("THE TRIPTYCH OF PASSAGE\n\nYou are Archivist-7, a Bridge Hunter. Three Fragments have surfaced. Bring them back.\n\nHold SHIFT to perceive the hidden layer.");
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emergent Logic Lab</title>
+<style>
+  :root {
+    --bg0: #081018;
+    --bg1: #102033;
+    --panel: #0f1826;
+    --panel2: #111f31;
+    --line: #1f344a;
+    --text: #e9f3ff;
+    --muted: #8ea2b9;
+    --good: #37d09f;
+    --warn: #ffb259;
+    --bad: #ff6f7f;
+    --accent: #5fc9ff;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background:
+      radial-gradient(1000px 400px at 10% -10%, #1e3b53 0%, transparent 60%),
+      radial-gradient(800px 320px at 100% 0%, #2a294c 0%, transparent 55%),
+      var(--bg0);
+    color: var(--text);
+    font-family: "Consolas", "Menlo", monospace;
+  }
+
+  .app {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 14px;
+  }
+
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: linear-gradient(180deg, var(--panel2), var(--panel));
+    overflow: hidden;
+  }
+
+  .panel-head {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .title { font-size: 13px; letter-spacing: 0.08em; color: var(--accent); }
+  .subtitle { font-size: 11px; color: var(--muted); }
+
+  #world {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    display: block;
+    background: linear-gradient(180deg, #0d1a2a 0%, #0a1522 100%);
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .stat {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px;
+    background: #0c1420;
+  }
+
+  .stat .k { color: var(--muted); font-size: 11px; }
+  .stat .v { font-size: 12px; margin-top: 3px; }
+
+  .editor-wrap {
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 420px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    resize: vertical;
+    background: #0a121d;
+    color: #d6f3ff;
+    font-size: 12px;
+    line-height: 1.4;
+    tab-size: 2;
+  }
+
+  .btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  button {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #102033;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  button:hover { border-color: #356089; }
+
+  #status {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+    background: #0c1420;
+    min-height: 38px;
+  }
+
+  .test-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .test-item {
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #0c1420;
+    font-size: 12px;
+  }
+
+  .ok { color: var(--good); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+
+  @media (max-width: 980px) {
+    .app { grid-template-columns: 1fr; }
+    textarea { min-height: 320px; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="title">EMERGENT LOGIC LAB</div>
+          <div class="subtitle">Many simple agents, one evolving pattern</div>
+        </div>
+        <div class="subtitle">Self-test + self-heal runtime</div>
+      </div>
+      <canvas id="world" width="960" height="600"></canvas>
+      <div class="stats">
+        <div class="stat"><div class="k">Agents</div><div id="agentsStat" class="v">0</div></div>
+        <div class="stat"><div class="k">Avg speed</div><div id="speedStat" class="v">0</div></div>
+        <div class="stat"><div class="k">Clumpiness</div><div id="clumpStat" class="v">0</div></div>
+        <div class="stat"><div class="k">Integrity</div><div id="healthStat" class="v">0</div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="title">LIVE SCRIPT</div>
+          <div class="subtitle">Edit and apply. If unstable, the system heals itself.</div>
+        </div>
+      </div>
+      <div class="editor-wrap">
+        <textarea id="script"></textarea>
+        <div class="btns">
+          <button id="applyBtn">Apply script</button>
+          <button id="rewriteBtn">Rewrite editor with healed version</button>
+          <button id="resetBtn">Reset default</button>
+        </div>
+        <div id="status"></div>
+        <ul id="tests" class="test-list"></ul>
+      </div>
+    </section>
+  </div>
+
+<script>
+"use strict";
+
+const DEFAULT_SCRIPT = `({
+  name: "Pulse Weave",
+  params: {
+    count: 180,
+    maxSpeed: 2.4,
+    cohesion: 0.015,
+    alignment: 0.045,
+    separation: 0.09,
+    jitter: 0.13,
+    drag: 0.985,
+    influenceRadius: 46
+  },
+
+  // Called every frame for each agent.
+  // Return accelerations + hue drift.
+  rule(agent, neighbors, state) {
+    let cx = 0, cy = 0, avx = 0, avy = 0, sx = 0, sy = 0;
+
+    for (const n of neighbors) {
+      cx += n.x; cy += n.y;
+      avx += n.vx; avy += n.vy;
+      const dx = agent.x - n.x;
+      const dy = agent.y - n.y;
+      const d2 = dx * dx + dy * dy + 0.0001;
+      sx += dx / d2;
+      sy += dy / d2;
+    }
+
+    const count = Math.max(1, neighbors.length);
+    cx = cx / count - agent.x;
+    cy = cy / count - agent.y;
+    avx = avx / count;
+    avy = avy / count;
+
+    return {
+      ax: cx * state.params.cohesion + avx * state.params.alignment + sx * state.params.separation + (Math.random() - 0.5) * state.params.jitter,
+      ay: cy * state.params.cohesion + avy * state.params.alignment + sy * state.params.separation + (Math.random() - 0.5) * state.params.jitter,
+      hueShift: (neighbors.length / 12) * 0.35
+    };
+  },
+
+  // Optional adaptive mutation each frame.
+  mutate(metrics, params) {
+    const next = { ...params };
+    if (metrics.clumpiness > 0.62) next.separation *= 1.015;
+    if (metrics.clumpiness < 0.28) next.cohesion *= 1.01;
+    if (metrics.avgSpeed > 2.9) next.drag *= 0.996;
+    if (metrics.avgSpeed < 1.2) next.drag *= 1.002;
+    return next;
+  }
+})`;
+
+const SAFE_LIMITS = {
+  count: [30, 600],
+  maxSpeed: [0.1, 5],
+  cohesion: [0, 0.2],
+  alignment: [0, 0.3],
+  separation: [0, 0.6],
+  jitter: [0, 0.8],
+  drag: [0.9, 1],
+  influenceRadius: [10, 140]
+};
+
+const FALLBACK_RULE = (agent, neighbors, state) => {
+  let cx = 0, cy = 0, avx = 0, avy = 0, sx = 0, sy = 0;
+  for (const n of neighbors) {
+    cx += n.x; cy += n.y;
+    avx += n.vx; avy += n.vy;
+    const dx = agent.x - n.x;
+    const dy = agent.y - n.y;
+    const d2 = dx * dx + dy * dy + 0.0001;
+    sx += dx / d2;
+    sy += dy / d2;
+  }
+  const c = Math.max(1, neighbors.length);
+  cx = cx / c - agent.x;
+  cy = cy / c - agent.y;
+  return {
+    ax: cx * state.params.cohesion + (avx / c) * state.params.alignment + sx * state.params.separation,
+    ay: cy * state.params.cohesion + (avy / c) * state.params.alignment + sy * state.params.separation,
+    hueShift: neighbors.length * 0.02
+  };
+};
+
+const canvas = document.getElementById("world");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = true;
+
+const elScript = document.getElementById("script");
+const elStatus = document.getElementById("status");
+const elTests = document.getElementById("tests");
+const elAgents = document.getElementById("agentsStat");
+const elSpeed = document.getElementById("speedStat");
+const elClump = document.getElementById("clumpStat");
+const elHealth = document.getElementById("healthStat");
+
+const state = {
+  model: null,
+  agents: [],
+  metrics: { avgSpeed: 0, clumpiness: 0, integrity: 1 },
+  issues: [],
+  frame: 0
+};
+
+function clamp(v, lo, hi) {
+  if (!Number.isFinite(v)) return lo;
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function compileModel(code) {
+  const model = Function(`"use strict"; return (${code});`)();
+  return model;
+}
+
+function selfTestModel(model) {
+  const tests = [];
+
+  tests.push({
+    name: "shape",
+    pass: !!model && typeof model === "object",
+    message: "Model must be an object literal"
+  });
+
+  tests.push({
+    name: "params",
+    pass: !!model && model.params && typeof model.params === "object",
+    message: "model.params must exist"
+  });
+
+  const hasRule = !!model && typeof model.rule === "function";
+  tests.push({
+    name: "rule",
+    pass: hasRule,
+    message: "model.rule(agent, neighbors, state) is required"
+  });
+
+  if (hasRule) {
+    try {
+      const sample = model.rule(
+        { x: 10, y: 10, vx: 0.2, vy: 0.4 },
+        [{ x: 14, y: 9, vx: 0.1, vy: 0.1 }],
+        { params: { cohesion: 0.01, alignment: 0.01, separation: 0.05, jitter: 0, drag: 0.99 } }
+      );
+      const pass = sample && Number.isFinite(sample.ax) && Number.isFinite(sample.ay);
+      tests.push({ name: "rule-output", pass, message: "rule must return finite ax/ay" });
+    } catch (err) {
+      tests.push({ name: "rule-output", pass: false, message: "rule throws: " + err.message });
+    }
+  }
+
+  if (model && model.params) {
+    let paramsPass = true;
+    const bad = [];
+    for (const [k, [lo, hi]] of Object.entries(SAFE_LIMITS)) {
+      const v = model.params[k];
+      if (!Number.isFinite(v) || v < lo || v > hi) {
+        paramsPass = false;
+        bad.push(`${k}=${String(v)}`);
+      }
+    }
+    tests.push({
+      name: "safe-ranges",
+      pass: paramsPass,
+      message: paramsPass ? "params in safe bounds" : "out of bounds: " + bad.join(", ")
+    });
+  }
+
+  return tests;
+}
+
+function healModel(model) {
+  const issues = [];
+  const healed = (model && typeof model === "object") ? { ...model } : {};
+  healed.params = (healed.params && typeof healed.params === "object") ? { ...healed.params } : {};
+
+  const defaults = {
+    count: 180,
+    maxSpeed: 2.4,
+    cohesion: 0.015,
+    alignment: 0.045,
+    separation: 0.09,
+    jitter: 0.13,
+    drag: 0.985,
+    influenceRadius: 46
+  };
+
+  for (const [k, [lo, hi]] of Object.entries(SAFE_LIMITS)) {
+    const original = healed.params[k];
+    const fallback = (k in defaults) ? defaults[k] : lo;
+    const fixed = clamp(Number.isFinite(original) ? original : fallback, lo, hi);
+    if (original !== fixed) {
+      issues.push(`healed param ${k}: ${String(original)} -> ${fixed}`);
+    }
+    healed.params[k] = fixed;
+  }
+
+  if (typeof healed.rule !== "function") {
+    issues.push("missing rule() replaced with fallback rule");
+    healed.rule = FALLBACK_RULE;
+  }
+
+  const userMutate = healed.mutate;
+  healed.mutate = (metrics, params) => {
+    try {
+      if (typeof userMutate === "function") {
+        const out = userMutate(metrics, params);
+        return (out && typeof out === "object") ? out : params;
+      }
+      return params;
+    } catch {
+      issues.push("mutate() threw; mutation skipped this frame");
+      return params;
+    }
+  };
+
+  const userRule = healed.rule;
+  healed.rule = (agent, neighbors, runtimeState) => {
+    try {
+      const out = userRule(agent, neighbors, runtimeState);
+      const ax = Number.isFinite(out?.ax) ? out.ax : 0;
+      const ay = Number.isFinite(out?.ay) ? out.ay : 0;
+      const hueShift = Number.isFinite(out?.hueShift) ? out.hueShift : 0;
+      return { ax, ay, hueShift };
+    } catch {
+      return { ax: 0, ay: 0, hueShift: 0 };
+    }
+  };
+
+  return { healed, issues };
+}
+
+function makeHealedScript(model) {
+  const p = model.params;
+  return `({
+  name: ${JSON.stringify(model.name || "Healed Logic")},
+  params: {
+    count: ${p.count},
+    maxSpeed: ${p.maxSpeed},
+    cohesion: ${p.cohesion},
+    alignment: ${p.alignment},
+    separation: ${p.separation},
+    jitter: ${p.jitter},
+    drag: ${p.drag},
+    influenceRadius: ${p.influenceRadius}
+  },
+  rule(agent, neighbors, state) {
+    // Keep or replace this with your own logic.
+    return { ax: 0, ay: 0, hueShift: 0 };
+  },
+  mutate(metrics, params) {
+    return params;
+  }
+})`;
+}
+
+function applyScript({ rewriteEditor = false } = {}) {
+  const code = elScript.value;
+  let compiled = null;
+  let tests = [];
+  let compileError = null;
+
+  try {
+    compiled = compileModel(code);
+    tests = selfTestModel(compiled);
+  } catch (err) {
+    compileError = err;
+  }
+
+  if (compileError) {
+    const fallback = compileModel(DEFAULT_SCRIPT);
+    const healedResult = healModel(fallback);
+    state.model = healedResult.healed;
+    state.issues = ["compile failed: " + compileError.message, ...healedResult.issues];
+    setStatus("Bad script syntax. Running fallback model.", "bad");
+    renderTests([
+      { pass: false, name: "compile", message: compileError.message },
+      ...selfTestModel(state.model)
+    ]);
+    if (rewriteEditor) {
+      elScript.value = makeHealedScript(state.model);
+    }
+    resetAgents();
+    return;
+  }
+
+  const healedResult = healModel(compiled);
+  state.model = healedResult.healed;
+  state.issues = healedResult.issues;
+
+  const passCount = tests.filter(t => t.pass).length;
+  const warn = healedResult.issues.length > 0;
+
+  if (passCount === tests.length && !warn) {
+    setStatus("Script applied. All tests passed.", "ok");
+  } else if (passCount > 0) {
+    setStatus("Script applied with healing. Check test output.", "warn");
+  } else {
+    setStatus("Script applied with heavy healing.", "bad");
+  }
+
+  renderTests([
+    ...tests,
+    ...healedResult.issues.map(msg => ({ pass: true, name: "heal", message: msg, healed: true }))
+  ]);
+
+  if (rewriteEditor) {
+    elScript.value = makeHealedScript(state.model);
+  }
+
+  resetAgents();
+}
+
+function setStatus(text, kind) {
+  elStatus.textContent = text;
+  elStatus.className = "";
+  elStatus.classList.add(kind === "ok" ? "ok" : kind === "warn" ? "warn" : "bad");
+}
+
+function renderTests(tests) {
+  elTests.innerHTML = "";
+  for (const t of tests) {
+    const li = document.createElement("li");
+    li.className = "test-item " + (t.pass ? (t.healed ? "warn" : "ok") : "bad");
+    const symbol = t.pass ? (t.healed ? "~" : "+") : "x";
+    li.textContent = `[${symbol}] ${t.name}: ${t.message}`;
+    elTests.appendChild(li);
+  }
+}
+
+function resetAgents() {
+  const p = state.model.params;
+  state.agents = Array.from({ length: Math.round(p.count) }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    vx: (Math.random() - 0.5) * 2,
+    vy: (Math.random() - 0.5) * 2,
+    hue: Math.random() * 360
+  }));
+}
+
+function neighborsOf(index, r) {
+  const a = state.agents[index];
+  const out = [];
+  const r2 = r * r;
+  for (let i = 0; i < state.agents.length; i++) {
+    if (i === index) continue;
+    const b = state.agents[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if ((dx * dx + dy * dy) <= r2) out.push(b);
+  }
+  return out;
+}
+
+function computeMetrics() {
+  let sumSpeed = 0;
+  let denseCount = 0;
+  const r = state.model.params.influenceRadius;
+  for (let i = 0; i < state.agents.length; i++) {
+    const a = state.agents[i];
+    const speed = Math.hypot(a.vx, a.vy);
+    sumSpeed += speed;
+    const n = neighborsOf(i, r).length;
+    if (n > 10) denseCount++;
+  }
+  state.metrics.avgSpeed = sumSpeed / Math.max(1, state.agents.length);
+  state.metrics.clumpiness = denseCount / Math.max(1, state.agents.length);
+
+  const sane = Number.isFinite(state.metrics.avgSpeed) && Number.isFinite(state.metrics.clumpiness);
+  state.metrics.integrity = sane ? clamp(1 - Math.max(0, state.metrics.avgSpeed - 3.6) * 0.2, 0, 1) : 0;
+}
+
+function update() {
+  const p = state.model.params;
+
+  // Self-modifying dynamics via user mutate() + safety clamps.
+  const nextParams = state.model.mutate(state.metrics, { ...p });
+  for (const [k, [lo, hi]] of Object.entries(SAFE_LIMITS)) {
+    p[k] = clamp(Number.isFinite(nextParams[k]) ? nextParams[k] : p[k], lo, hi);
+  }
+
+  for (let i = 0; i < state.agents.length; i++) {
+    const a = state.agents[i];
+    const neighbors = neighborsOf(i, p.influenceRadius);
+
+    const out = state.model.rule(a, neighbors, state);
+    a.vx += out.ax;
+    a.vy += out.ay;
+
+    a.vx *= p.drag;
+    a.vy *= p.drag;
+
+    const speed = Math.hypot(a.vx, a.vy);
+    if (speed > p.maxSpeed) {
+      a.vx = (a.vx / speed) * p.maxSpeed;
+      a.vy = (a.vy / speed) * p.maxSpeed;
+    }
+
+    a.x += a.vx;
+    a.y += a.vy;
+    a.hue = (a.hue + out.hueShift + 360) % 360;
+
+    if (a.x < 0) a.x += canvas.width;
+    if (a.x > canvas.width) a.x -= canvas.width;
+    if (a.y < 0) a.y += canvas.height;
+    if (a.y > canvas.height) a.y -= canvas.height;
+  }
+
+  computeMetrics();
+
+  // Runtime self-heal trigger.
+  if (state.metrics.integrity < 0.25) {
+    p.jitter *= 0.9;
+    p.separation *= 1.05;
+    p.drag = clamp(p.drag + 0.002, 0.9, 1);
+    state.metrics.integrity = clamp(state.metrics.integrity + 0.02, 0, 1);
+  }
+}
+
+function draw() {
+  ctx.fillStyle = "rgba(6, 14, 22, 0.2)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (const a of state.agents) {
+    ctx.beginPath();
+    ctx.fillStyle = `hsla(${a.hue}, 84%, 66%, 0.75)`;
+    ctx.arc(a.x, a.y, 2.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  elAgents.textContent = String(state.agents.length);
+  elSpeed.textContent = state.metrics.avgSpeed.toFixed(2);
+  elClump.textContent = state.metrics.clumpiness.toFixed(2);
+  elHealth.textContent = (state.metrics.integrity * 100).toFixed(0) + "%";
+}
+
+function tick() {
+  state.frame++;
+  update();
+  draw();
+  requestAnimationFrame(tick);
+}
+
+// Controls
+elScript.value = DEFAULT_SCRIPT;
+document.getElementById("applyBtn").addEventListener("click", () => applyScript({ rewriteEditor: false }));
+document.getElementById("rewriteBtn").addEventListener("click", () => applyScript({ rewriteEditor: true }));
+document.getElementById("resetBtn").addEventListener("click", () => {
+  elScript.value = DEFAULT_SCRIPT;
+  applyScript({ rewriteEditor: false });
+});
+
+applyScript({ rewriteEditor: false });
+ctx.fillStyle = "#081018";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

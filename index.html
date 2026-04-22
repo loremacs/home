@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>loremacs &mdash; atlas</title>
+<style>
+  :root {
+    --text: #e7efff;
+    --muted: #7f8ba5;
+    --accent: #8fd6ff;
+    --node-bg: rgba(12, 22, 40, 0.72);
+    --node-border: rgba(120, 170, 220, 0.28);
+    --node-glow: rgba(120, 200, 255, 0.22);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    color: var(--text);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Layers */
+  #sky {
+    position: fixed; inset: 0;
+    z-index: 0;
+    display: block;
+  }
+
+  .stage {
+    position: fixed; inset: 0;
+    z-index: 1;
+    perspective: 1400px;
+    perspective-origin: 50% 50%;
+    overflow: hidden;
+  }
+
+  .sphere {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 0; height: 0;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  .node {
+    position: absolute;
+    left: 0; top: 0;
+    width: 150px;
+    transform: translate3d(-50%, -50%, 0);
+    transition: opacity 360ms ease, filter 360ms ease;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    pointer-events: auto;
+  }
+
+  .node .card {
+    background: var(--node-bg);
+    border: 1px solid var(--node-border);
+    border-radius: 10px;
+    padding: 8px 10px 9px;
+    backdrop-filter: blur(6px);
+    box-shadow:
+      0 6px 20px rgba(0, 0, 0, 0.6),
+      0 0 22px var(--node-glow);
+    transition: border-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
+  }
+  .node:hover .card {
+    border-color: rgba(180, 220, 255, 0.75);
+    transform: translateY(-2px);
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.7),
+      0 0 34px rgba(140, 220, 255, 0.55);
+  }
+  .node .thumb {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: radial-gradient(circle at 30% 30%, #1b3055, #0a1422 75%);
+    border: 1px solid rgba(120, 170, 220, 0.2);
+    overflow: hidden;
+    position: relative;
+  }
+  .node .thumb svg { width: 100%; height: 100%; display: block; }
+  .node .title {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+  .node .desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+  .node .rank-dot {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #5fc9ff;
+    box-shadow: 0 0 6px #5fc9ff;
+    opacity: 0.65;
+  }
+
+  .node.live .thumb {
+    background: linear-gradient(135deg, #1a3a5e, #0b1a33);
+    border-color: rgba(140, 220, 255, 0.4);
+  }
+  .node.live .rank-dot { background: #7fffcc; box-shadow: 0 0 8px #7fffcc; }
+  .node.placeholder .card { opacity: 0.92; }
+  .node.placeholder .title { color: #aec8e8; }
+
+  /* Top bar */
+  header.top {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    pointer-events: none;
+  }
+  header.top > * { pointer-events: auto; }
+
+  .handle {
+    font-family: "Consolas", monospace;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--text);
+    padding: 6px 12px;
+    border: 1px solid rgba(120, 170, 220, 0.3);
+    border-radius: 99px;
+    background: rgba(10, 18, 32, 0.55);
+    backdrop-filter: blur(8px);
+  }
+  .handle .slash { color: var(--accent); }
+  .tagline {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .top-links {
+    margin-left: auto;
+    display: flex; gap: 8px;
+  }
+  .top-links a {
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); text-decoration: none;
+    padding: 6px 10px;
+    border: 1px solid rgba(120, 170, 220, 0.15);
+    border-radius: 99px;
+    background: rgba(10, 18, 32, 0.4);
+  }
+  .top-links a:hover { color: var(--accent); border-color: rgba(120, 170, 220, 0.5); }
+
+  /* Bottom HUD */
+  .hud {
+    position: fixed;
+    bottom: 14px; left: 0; right: 0;
+    z-index: 3;
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    pointer-events: none;
+  }
+  .hud .chip {
+    font-family: "Consolas", monospace;
+    font-size: 11px;
+    color: var(--muted);
+    background: rgba(10, 18, 32, 0.55);
+    border: 1px solid rgba(120, 170, 220, 0.22);
+    border-radius: 99px;
+    padding: 5px 12px;
+    backdrop-filter: blur(6px);
+  }
+  .hud .chip b { color: var(--accent); font-weight: 600; }
+  .hud .chip .kbd {
+    display: inline-block;
+    border: 1px solid rgba(120, 170, 220, 0.35);
+    padding: 0 5px;
+    border-radius: 4px;
+    margin: 0 2px;
+    font-size: 10px;
+    color: #c6d9f2;
+  }
+
+  /* Hint overlay (first visit) */
+  .hint-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    opacity: 1;
+    transition: opacity 400ms ease;
+  }
+  .hint-overlay.hidden { opacity: 0; pointer-events: none; }
+  .hint-card {
+    max-width: 360px;
+    text-align: center;
+    padding: 22px;
+    border: 1px solid rgba(120, 170, 220, 0.3);
+    border-radius: 14px;
+    background: rgba(12, 22, 40, 0.8);
+  }
+  .hint-card h2 {
+    margin: 0 0 6px;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .hint-card p { font-size: 12px; color: #c6d2e5; line-height: 1.6; margin: 6px 0; }
+  .hint-card button {
+    margin-top: 14px;
+    padding: 8px 14px;
+    background: #18304a; color: var(--text);
+    border: 1px solid #2e5582; border-radius: 8px;
+    font-family: inherit; font-size: 12px;
+    cursor: pointer;
+  }
+  .hint-card button:hover { background: #214270; }
+
+  @media (max-width: 600px) {
+    .node { width: 130px; }
+    .node .title { font-size: 11px; }
+    .node .desc { font-size: 10px; }
+    .handle { font-size: 11px; }
+    .tagline { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="sky"></canvas>
+
+<header class="top">
+  <div class="handle">@<span class="slash">lore</span>macs</div>
+  <div class="tagline">atlas &middot; a rotating index of experiments</div>
+  <div class="top-links">
+    <a href="#" id="linkAbout">about</a>
+    <a href="#" id="linkReset" title="Reset click ranking">reset</a>
+  </div>
+</header>
+
+<div class="stage" id="stage">
+  <div class="sphere" id="sphere"></div>
+</div>
+
+<div class="hud">
+  <div class="chip"><b>drag</b> to rotate</div>
+  <div class="chip"><b>scroll</b> to dive in &middot; out</div>
+  <div class="chip">nodes: <b id="visCount">0</b> / <b id="totalCount">0</b></div>
+  <div class="chip">zoom: <b id="zoomChip">1.00</b></div>
+</div>
+
+<div id="hint" class="hint-overlay">
+  <div class="hint-card">
+    <h2>you are here</h2>
+    <p>A sphere of experiments. Each node is a small thing to look at or use.</p>
+    <p><b>Drag</b> to turn the view. <b>Scroll</b> to dive deeper &mdash; more nodes emerge at the edges.</p>
+    <p>Nodes you open float toward the front over time.</p>
+    <button id="hintClose">enter</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// =====================================================================
+// NODE CATALOG
+// Each node has an id, title, description, optional href (if null, it is a
+// placeholder that marks "coming soon" and is still clickable to show a
+// quick inline popup).
+// The initial rank (lower = higher priority) comes from this ordering;
+// click counts stored in localStorage can reorder over time.
+// =====================================================================
+const CATALOG = [
+  { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: "playground/" },
+  { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: "emergent-lab/" },
+  { id: "triptych",     title: "Triptych of Passage",   desc: "SNES-scale top-down POC with curtain-lens perception.", href: "triptych/" },
+  { id: "prism",        title: "Prism Field",           desc: "Signals get sorted." },
+  { id: "loom",         title: "Loom",                  desc: "Threads find their weave." },
+  { id: "fathom",       title: "Fathom",                desc: "Depth as calibration." },
+  { id: "glyph",        title: "Glyph Forge",           desc: "Symbols want to mean." },
+  { id: "palimpsest",   title: "Palimpsest",            desc: "The page remembers." },
+  { id: "drift",        title: "Drift",                 desc: "Entropy as compass." },
+  { id: "lantern",      title: "Lantern",               desc: "One light at a time." },
+  { id: "marrow",       title: "Marrow",                desc: "What is inside the inside." },
+  { id: "chalice",      title: "Chalice",               desc: "Containers as answers." },
+  { id: "umbra",        title: "Umbra",                 desc: "Shadows as structure." },
+  { id: "echowell",     title: "Echo Well",             desc: "Call, then listen." },
+  { id: "cartograph",   title: "Cartograph",            desc: "Maps the map." },
+  { id: "solstice",     title: "Solstice",              desc: "A long slow turn." },
+  { id: "astrolabe",    title: "Astrolabe",             desc: "You are here, probably." },
+  { id: "cipher",       title: "Cipher Garden",         desc: "Grow the secret." },
+  { id: "keepsake",     title: "Keepsake",              desc: "Small memories, big shapes." },
+  { id: "tessera",      title: "Tessera",               desc: "Every tile argues." },
+  { id: "hollow",       title: "Hollow",                desc: "Absence has shape." },
+  { id: "spindle",      title: "Spindle",               desc: "Wind the thread carefully." },
+  { id: "gilding",      title: "Gilding",               desc: "Edges matter." },
+  { id: "vesper",       title: "Vesper",                desc: "A song at dusk." },
+  { id: "anchorage",    title: "Anchorage",             desc: "Where systems rest." },
+  { id: "rune",         title: "Rune",                  desc: "The mark that carries." },
+  { id: "quiver",       title: "Quiver",                desc: "Many small possibilities." },
+  { id: "sedge",        title: "Sedge",                 desc: "Grows where others can't." },
+  { id: "basin",        title: "Basin",                 desc: "Everything flows down." },
+  { id: "halcyon",      title: "Halcyon",               desc: "A still bright morning." },
+];
+
+// =====================================================================
+// PERSISTENCE
+// =====================================================================
+const LS_CLICKS = "loremacs.atlas.clicks.v1";
+const SS_VIEW   = "loremacs.atlas.view.v1";
+
+function loadClicks() {
+  try { return JSON.parse(localStorage.getItem(LS_CLICKS) || "{}"); }
+  catch { return {}; }
+}
+function saveClicks(map) {
+  try { localStorage.setItem(LS_CLICKS, JSON.stringify(map)); } catch {}
+}
+function loadView() {
+  try { return JSON.parse(sessionStorage.getItem(SS_VIEW) || "null"); }
+  catch { return null; }
+}
+function saveView(v) {
+  try { sessionStorage.setItem(SS_VIEW, JSON.stringify(v)); } catch {}
+}
+
+// =====================================================================
+// NODE RANKING
+// rank = baseIndex - clickCount * K  (lower rank number = higher priority)
+// Top-ranked nodes appear at low zoom; low-ranked emerge as you dive in.
+// =====================================================================
+let clicks = loadClicks();
+function recomputeRanks() {
+  // Start with catalog order, then boost by click count.
+  const withRank = CATALOG.map((n, i) => ({
+    ...n,
+    baseIdx: i,
+    score: i - (clicks[n.id] || 0) * 2.0,
+  }));
+  withRank.sort((a, b) => a.score - b.score);
+  // Assign rank 0..N-1 based on sorted position.
+  withRank.forEach((n, idx) => { n.rank = idx; });
+  return withRank;
+}
+
+// =====================================================================
+// FIBONACCI SPHERE POSITIONS
+// Generate unit vectors evenly distributed on a sphere surface.
+// =====================================================================
+function fibonacciSphere(n) {
+  const points = [];
+  const phi = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (i / Math.max(1, n - 1)) * 2;
+    const r = Math.sqrt(1 - y * y);
+    const theta = phi * i;
+    points.push({ x: Math.cos(theta) * r, y, z: Math.sin(theta) * r });
+  }
+  return points;
+}
+
+// =====================================================================
+// STATE
+// =====================================================================
+const state = {
+  nodes: [],           // sorted by rank with { ...catalog, rank, pos:{x,y,z} }
+  zoom: 1.0,           // 0.6 .. 4.0
+  rotX: -0.18,
+  rotY: 0.15,
+  targetRotX: -0.18,
+  targetRotY: 0.15,
+  targetZoom: 1.0,
+  dragging: false,
+  lastPointer: null,
+  velX: 0, velY: 0,
+  lastInteract: 0,
+};
+
+const stage  = document.getElementById("stage");
+const sphere = document.getElementById("sphere");
+const sky    = document.getElementById("sky");
+const skyCtx = sky.getContext("2d");
+
+// =====================================================================
+// BUILD DOM NODES
+// =====================================================================
+function buildNodes() {
+  sphere.innerHTML = "";
+  const ranked = recomputeRanks();
+  const positions = fibonacciSphere(ranked.length);
+  state.nodes = ranked.map((n, i) => {
+    const a = document.createElement("a");
+    a.className = "node " + (n.href ? "live" : "placeholder");
+    a.href = n.href || "#";
+    a.dataset.id = n.id;
+    a.innerHTML = `
+      <div class="card">
+        <div class="rank-dot"></div>
+        <div class="thumb">${makeThumb(n)}</div>
+        <div class="title">${escapeHtml(n.title)}</div>
+        <div class="desc">${escapeHtml(n.desc)}</div>
+      </div>
+    `;
+    a.addEventListener("click", (e) => onNodeClick(e, n));
+    sphere.appendChild(a);
+    return { ...n, el: a, pos: positions[i] };
+  });
+  document.getElementById("totalCount").textContent = state.nodes.length;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+// Tiny SVG thumbnails — distinct per live node, a simple generated glyph for placeholders.
+function makeThumb(n) {
+  if (n.id === "playwright") {
+    return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+        <stop offset="0%" stop-color="#1a3f6b"/><stop offset="100%" stop-color="#0b1a30"/>
+      </linearGradient></defs>
+      <rect width="160" height="90" fill="url(#g1)"/>
+      <rect x="10" y="12" width="80" height="66" fill="#0a1524" stroke="#3b6ea6"/>
+      <rect x="95" y="12" width="55" height="66" fill="#0a1524" stroke="#3b6ea6"/>
+      <circle cx="20" cy="20" r="2.5" fill="#ff4a6b"/>
+      <circle cx="28" cy="20" r="2.5" fill="#ffb259"/>
+      <circle cx="36" cy="20" r="2.5" fill="#37d09f"/>
+      <rect x="98" y="18" width="48" height="3" fill="#5fc9ff"/>
+      <rect x="98" y="24" width="32" height="2" fill="#4a7aa8"/>
+      <rect x="98" y="30" width="40" height="2" fill="#4a7aa8"/>
+      <rect x="98" y="36" width="24" height="2" fill="#4a7aa8"/>
+    </svg>`;
+  }
+  if (n.id === "emergent") {
+    let dots = "";
+    for (let i = 0; i < 40; i++) {
+      const x = 20 + Math.random() * 120;
+      const y = 15 + Math.random() * 60;
+      const h = 180 + Math.random() * 80;
+      dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.6" fill="hsl(${h},80%,65%)" opacity="0.8"/>`;
+    }
+    return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+      <rect width="160" height="90" fill="#0a1528"/>${dots}
+    </svg>`;
+  }
+  if (n.id === "triptych") {
+    return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+      <rect width="160" height="90" fill="#0a0a1a"/>
+      <rect x="10" y="10" width="40" height="70" fill="#2d1b69" stroke="#00f0ff"/>
+      <rect x="60" y="10" width="40" height="70" fill="#4a2fa6" stroke="#ff2b7a"/>
+      <rect x="110" y="10" width="40" height="70" fill="#1a1040" stroke="#ffd23f"/>
+      <circle cx="30" cy="45" r="4" fill="#ffd23f"/>
+      <circle cx="80" cy="45" r="4" fill="#ff2b7a"/>
+      <circle cx="130" cy="45" r="4" fill="#00f0ff"/>
+    </svg>`;
+  }
+  // Generic procedural glyph for placeholders
+  const seed = hash(n.id);
+  const hue = seed % 360;
+  const paths = [];
+  const rng = mulberry32(seed);
+  for (let i = 0; i < 5; i++) {
+    const x1 = 10 + rng() * 140, y1 = 10 + rng() * 70;
+    const x2 = 10 + rng() * 140, y2 = 10 + rng() * 70;
+    paths.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="hsla(${(hue+i*20)%360},60%,65%,0.7)" stroke-width="1"/>`);
+  }
+  const cx = 40 + rng() * 80, cy = 25 + rng() * 40;
+  return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+    <rect width="160" height="90" fill="hsl(${hue},40%,10%)"/>
+    ${paths.join("")}
+    <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="none" stroke="hsl(${hue},80%,70%)" stroke-width="1"/>
+    <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2" fill="hsl(${hue},80%,80%)"/>
+  </svg>`;
+}
+function hash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function mulberry32(seed) {
+  return function() {
+    let t = (seed += 0x6D2B79F5) | 0;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// =====================================================================
+// VISIBILITY MODEL
+// At zoom z, we show visibleCount(z) nodes by rank.
+// Baseline at z=0.6 -> 6 nodes. At z=4.0 -> all nodes.
+// Radius also grows with z so the sphere "expands" into the view.
+// =====================================================================
+function visibleCountForZoom(z) {
+  const t = (z - 0.6) / (4.0 - 0.6);
+  const clamped = Math.max(0, Math.min(1, t));
+  // Ease out for faster early reveal
+  const eased = 1 - Math.pow(1 - clamped, 1.4);
+  const min = 6;
+  return Math.max(min, Math.min(state.nodes.length, Math.round(min + eased * (state.nodes.length - min))));
+}
+function radiusForZoom(z) {
+  // Scales the sphere outward as zoom grows. Base keeps nodes clustered near center.
+  return 220 + z * 220;
+}
+
+// =====================================================================
+// ROTATION + RENDER
+// Per-frame: rotate each visible node's unit position, apply translate3d.
+// Back-facing nodes fade via opacity; those offscreen get pointer-events
+// disabled so clicks fall through to nothing (they still visually fade).
+// =====================================================================
+function renderFrame() {
+  // Smooth easing toward targets
+  state.rotX += (state.targetRotX - state.rotX) * 0.12;
+  state.rotY += (state.targetRotY - state.rotY) * 0.12;
+  state.zoom += (state.targetZoom - state.zoom) * 0.12;
+
+  // Free-rotate inertia when not dragging
+  if (!state.dragging) {
+    state.targetRotY += state.velY * 0.016;
+    state.targetRotX += state.velX * 0.016;
+    state.velX *= 0.94;
+    state.velY *= 0.94;
+    // Gentle auto-rotate if user hasn't interacted for a while
+    const idle = Date.now() - state.lastInteract;
+    if (idle > 2500) {
+      state.targetRotY += 0.0015;
+    }
+  }
+
+  // Clamp rotX so poles don't flip wildly
+  if (state.targetRotX > 1.2) state.targetRotX = 1.2;
+  if (state.targetRotX < -1.2) state.targetRotX = -1.2;
+
+  const sinX = Math.sin(state.rotX), cosX = Math.cos(state.rotX);
+  const sinY = Math.sin(state.rotY), cosY = Math.cos(state.rotY);
+  const R = radiusForZoom(state.zoom);
+  const visN = visibleCountForZoom(state.zoom);
+  let actuallyVisible = 0;
+
+  // The sphere container lives at (0,0,0); per-node transform carries position.
+  for (let i = 0; i < state.nodes.length; i++) {
+    const n = state.nodes[i];
+    const showByRank = n.rank < visN;
+    if (!showByRank) {
+      if (n.el.style.opacity !== "0") {
+        n.el.style.opacity = "0";
+        n.el.style.pointerEvents = "none";
+      }
+      continue;
+    }
+    const p = n.pos;
+    // rotateX then rotateY (matches CSS order but we do it in JS for fade logic)
+    const y1 = p.y * cosX - p.z * sinX;
+    const z1 = p.y * sinX + p.z * cosX;
+    const x2 = p.x * cosY + z1 * sinY;
+    const z2 = -p.x * sinY + z1 * cosY;
+
+    const wx = x2 * R;
+    const wy = y1 * R;
+    const wz = z2 * R;
+
+    // Opacity fades back side. z > 0 is toward viewer (CSS convention).
+    const frontness = (z2 + 1) / 2; // 0..1
+    const op = Math.max(0.18, Math.min(1, 0.35 + frontness * 0.85));
+    n.el.style.opacity = op.toFixed(3);
+    n.el.style.pointerEvents = frontness > 0.25 ? "auto" : "none";
+    n.el.style.zIndex = String(1000 + Math.round(wz));
+    n.el.style.transform = `translate3d(${wx}px, ${wy}px, ${wz}px) translate(-50%, -50%)`;
+    actuallyVisible++;
+  }
+
+  document.getElementById("visCount").textContent = actuallyVisible;
+  document.getElementById("zoomChip").textContent = state.zoom.toFixed(2);
+
+  drawSky();
+  requestAnimationFrame(renderFrame);
+}
+
+// =====================================================================
+// STARFIELD + NEBULA
+// Parallax slightly with rotation so the sky shifts as the sphere turns.
+// =====================================================================
+let stars = [];
+let nebulae = [];
+function initSky() {
+  sky.width = innerWidth;
+  sky.height = innerHeight;
+  const n = Math.min(500, Math.floor((innerWidth * innerHeight) / 2400));
+  stars = [];
+  const rng = mulberry32(77);
+  for (let i = 0; i < n; i++) {
+    stars.push({
+      // in a 2:1 wrapping "skybox"
+      u: rng() * 2 - 1, // -1..1 longitude equivalent (wraps)
+      v: rng() * 2 - 1, // -1..1 latitude
+      size: 0.4 + rng() * 1.8,
+      phase: rng() * Math.PI * 2,
+      speed: 0.3 + rng() * 0.8,
+      hue: 200 + rng() * 60,
+    });
+  }
+  nebulae = [];
+  const nb = 4;
+  for (let i = 0; i < nb; i++) {
+    nebulae.push({
+      u: rng() * 2 - 1,
+      v: (rng() * 2 - 1) * 0.6,
+      r: 180 + rng() * 280,
+      hue: 210 + rng() * 120,
+      alpha: 0.06 + rng() * 0.08,
+    });
+  }
+}
+function drawSky() {
+  const W = sky.width, H = sky.height;
+  skyCtx.fillStyle = "#000";
+  skyCtx.fillRect(0, 0, W, H);
+
+  // parallax offset from rotation (small)
+  const parX = state.rotY * 80;
+  const parY = -state.rotX * 80;
+
+  // nebulae
+  for (const nb of nebulae) {
+    const x = ((nb.u * W * 1.2 + parX * 0.5) % (W * 1.4) + W * 1.4) % (W * 1.4) - W * 0.2;
+    const y = H * 0.5 + nb.v * H * 0.45 + parY * 0.5;
+    const grad = skyCtx.createRadialGradient(x, y, 0, x, y, nb.r);
+    grad.addColorStop(0, `hsla(${nb.hue}, 70%, 45%, ${nb.alpha})`);
+    grad.addColorStop(1, "hsla(260, 80%, 10%, 0)");
+    skyCtx.fillStyle = grad;
+    skyCtx.fillRect(x - nb.r, y - nb.r, nb.r * 2, nb.r * 2);
+  }
+
+  // stars
+  const t = performance.now() * 0.001;
+  for (const s of stars) {
+    let x = ((s.u * W * 1.2 + parX) % (W * 1.4) + W * 1.4) % (W * 1.4) - W * 0.2;
+    let y = H * 0.5 + s.v * H * 0.55 + parY;
+    const tw = 0.5 + 0.5 * Math.sin(t * s.speed + s.phase);
+    const a = 0.4 + tw * 0.6;
+    skyCtx.fillStyle = `hsla(${s.hue}, 70%, ${70 + tw * 20}%, ${a})`;
+    skyCtx.beginPath();
+    skyCtx.arc(x, y, s.size, 0, Math.PI * 2);
+    skyCtx.fill();
+  }
+}
+
+// =====================================================================
+// INPUT
+// =====================================================================
+function onPointerDown(e) {
+  // Ignore clicks that originate on a node anchor — let the link work.
+  if (e.target.closest("a.node")) {
+    state._downOnNode = true;
+    state._downAt = { x: e.clientX, y: e.clientY };
+    return;
+  }
+  state._downOnNode = false;
+  state.dragging = true;
+  state.lastPointer = { x: e.clientX, y: e.clientY, t: performance.now() };
+  state.velX = 0; state.velY = 0;
+  stage.setPointerCapture?.(e.pointerId);
+  state.lastInteract = Date.now();
+}
+function onPointerMove(e) {
+  if (state._downOnNode) {
+    // Cancel the pending click if the user actually drags off the node.
+    const dx = e.clientX - state._downAt.x;
+    const dy = e.clientY - state._downAt.y;
+    if (dx * dx + dy * dy > 25) {
+      state._downOnNode = false;
+      state.dragging = true;
+      state.lastPointer = { x: e.clientX, y: e.clientY, t: performance.now() };
+    }
+  }
+  if (!state.dragging || !state.lastPointer) return;
+  const now = performance.now();
+  const dx = e.clientX - state.lastPointer.x;
+  const dy = e.clientY - state.lastPointer.y;
+  const dt = Math.max(1, now - state.lastPointer.t);
+  const sens = 0.006;
+  state.targetRotY += dx * sens;
+  state.targetRotX -= dy * sens;
+  state.velY = (dx * sens) * (1000 / dt) * 0.02;
+  state.velX = -(dy * sens) * (1000 / dt) * 0.02;
+  state.lastPointer = { x: e.clientX, y: e.clientY, t: now };
+  state.lastInteract = Date.now();
+}
+function onPointerUp(e) {
+  state.dragging = false;
+  state.lastPointer = null;
+  state._downOnNode = false;
+}
+stage.addEventListener("pointerdown", onPointerDown);
+stage.addEventListener("pointermove", onPointerMove);
+window.addEventListener("pointerup", onPointerUp);
+stage.addEventListener("pointercancel", onPointerUp);
+
+stage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const delta = e.deltaY;
+  const factor = Math.exp(-delta * 0.0012);
+  state.targetZoom *= factor;
+  if (state.targetZoom < 0.6) state.targetZoom = 0.6;
+  if (state.targetZoom > 4.0) state.targetZoom = 4.0;
+  state.lastInteract = Date.now();
+}, { passive: false });
+
+// Touch pinch to zoom
+let pinchStart = null;
+stage.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 2) {
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    pinchStart = { dist: d, zoom: state.targetZoom };
+  }
+}, { passive: true });
+stage.addEventListener("touchmove", (e) => {
+  if (e.touches.length === 2 && pinchStart) {
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const ratio = d / pinchStart.dist;
+    let z = pinchStart.zoom * ratio;
+    if (z < 0.6) z = 0.6;
+    if (z > 4.0) z = 4.0;
+    state.targetZoom = z;
+    state.lastInteract = Date.now();
+  }
+}, { passive: true });
+stage.addEventListener("touchend", () => { pinchStart = null; }, { passive: true });
+
+window.addEventListener("resize", () => {
+  sky.width = innerWidth; sky.height = innerHeight;
+});
+
+// =====================================================================
+// NODE CLICK
+// Live (href): increment click count, save view, navigate.
+// Placeholder: show a brief inline toast/popup.
+// =====================================================================
+let toastTimer = null;
+function onNodeClick(e, n) {
+  // If user was dragging, don't count as click.
+  if (state.dragging) { e.preventDefault(); return; }
+
+  if (!n.href) {
+    e.preventDefault();
+    showToast(`${n.title} — ${n.desc}  (coming soon)`);
+    // still count as interaction for ranking
+    bumpClick(n.id);
+    return;
+  }
+
+  bumpClick(n.id);
+  saveView({ zoom: state.zoom, rotX: state.rotX, rotY: state.rotY });
+  // follow the link normally
+}
+
+function bumpClick(id) {
+  clicks[id] = (clicks[id] || 0) + 1;
+  saveClicks(clicks);
+  // Rebuild ranks but keep positions? We rebuild positions too since fewer
+  // live nodes means better fibonacci distribution; this can shift layout.
+  // To keep the view stable we only rebuild ranks & reassign .rank without
+  // re-picking fibonacci positions when the total count is the same.
+  const ranked = recomputeRanks();
+  // Map id -> new rank
+  const rankById = {};
+  ranked.forEach((r, idx) => { rankById[r.id] = idx; });
+  for (const node of state.nodes) {
+    node.rank = rankById[node.id];
+  }
+}
+
+function showToast(text) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    Object.assign(el.style, {
+      position: "fixed", bottom: "56px", left: "50%",
+      transform: "translateX(-50%)",
+      padding: "8px 14px",
+      border: "1px solid rgba(120,170,220,0.3)",
+      background: "rgba(10,18,32,0.85)",
+      color: "#cdd9ef",
+      fontSize: "12px",
+      borderRadius: "10px",
+      zIndex: 5,
+      backdropFilter: "blur(6px)",
+      opacity: "0",
+      transition: "opacity 200ms ease",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  requestAnimationFrame(() => { el.style.opacity = "1"; });
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.opacity = "0"; }, 2200);
+}
+
+// =====================================================================
+// TOP BAR LINKS
+// =====================================================================
+document.getElementById("linkAbout").addEventListener("click", (e) => {
+  e.preventDefault();
+  showToast("loremacs — an index of experiments. drag. scroll. dive in.");
+});
+document.getElementById("linkReset").addEventListener("click", (e) => {
+  e.preventDefault();
+  clicks = {};
+  saveClicks(clicks);
+  const ranked = recomputeRanks();
+  const rankById = {};
+  ranked.forEach((r, idx) => { rankById[r.id] = idx; });
+  for (const node of state.nodes) node.rank = rankById[node.id];
+  showToast("click ranking reset.");
+});
+
+// =====================================================================
+// HINT
+// =====================================================================
+const hint = document.getElementById("hint");
+const HINT_KEY = "loremacs.atlas.hintSeen.v1";
+if (localStorage.getItem(HINT_KEY)) {
+  hint.classList.add("hidden");
+}
+document.getElementById("hintClose").addEventListener("click", () => {
+  hint.classList.add("hidden");
+  try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+});
+
+// =====================================================================
+// BOOT
+// =====================================================================
+function restoreView() {
+  const v = loadView();
+  if (!v) return;
+  state.zoom = v.zoom; state.targetZoom = v.zoom;
+  state.rotX = v.rotX; state.targetRotX = v.rotX;
+  state.rotY = v.rotY; state.targetRotY = v.rotY;
+}
+
+initSky();
+buildNodes();
+restoreView();
+state.lastInteract = Date.now();
+requestAnimationFrame(renderFrame);
+</script>
+</body>
+</html>

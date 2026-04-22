@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playwright Record Playground</title>
+<style>
+  :root {
+    --bg0: #070b13;
+    --bg1: #0c1420;
+    --panel: #0f1a2b;
+    --panel2: #122237;
+    --line: #1e3354;
+    --line2: #2b4773;
+    --text: #e7efff;
+    --muted: #8ea3c2;
+    --accent: #5fc9ff;
+    --good: #37d09f;
+    --warn: #ffb259;
+    --bad: #ff6f7f;
+    --rec: #ff4a6b;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background:
+      radial-gradient(1000px 400px at 10% -10%, #163552 0%, transparent 60%),
+      radial-gradient(800px 320px at 100% 0%, #2a294c 0%, transparent 55%),
+      var(--bg0);
+    color: var(--text);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--line);
+    background: #0b1322cc;
+    backdrop-filter: blur(6px);
+  }
+  .brand {
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+  .brand .dim { color: var(--muted); font-weight: 400; letter-spacing: 0.04em; }
+  .spacer { flex: 1; }
+  .kbd {
+    border: 1px solid var(--line2);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: var(--muted);
+    background: #0a1220;
+    font-family: "Consolas", monospace;
+  }
+  .topbar .hint { font-size: 12px; color: var(--muted); }
+
+  .app {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    height: calc(100vh - 40px);
+    gap: 0;
+  }
+
+  .pane {
+    display: flex; flex-direction: column;
+    min-width: 0;
+    border-right: 1px solid var(--line);
+  }
+  .pane:last-child { border-right: none; }
+
+  .menu {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #101d33, #0b1626);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .menu.row2 { border-top: 1px solid var(--line); padding: 6px 10px; }
+
+  button, .btn, select, input[type="text"] {
+    border: 1px solid var(--line2);
+    border-radius: 8px;
+    background: #14233d;
+    color: var(--text);
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  button:hover, .btn:hover { background: #1b2e4d; border-color: #365a8f; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  select { cursor: pointer; }
+
+  .btn-primary { background: #17436e; border-color: #2d6da9; }
+  .btn-primary:hover { background: #1c5388; }
+  .btn-record { background: #3a1520; border-color: #7a2a3c; color: #ffd2dd; }
+  .btn-record:hover { background: #4f1a28; }
+  .btn-record.active {
+    background: var(--rec); border-color: #ff8ea0; color: white;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .btn-good { background: #113a2d; border-color: #2a7655; color: #cdf8e5; }
+  .btn-good:hover { background: #154a39; }
+  .btn-ghost { background: transparent; }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 #ff4a6b66; }
+    50% { box-shadow: 0 0 0 6px #ff4a6b00; }
+  }
+
+  .url {
+    flex: 1;
+    min-width: 160px;
+    background: #0a1220;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: "Consolas", monospace;
+  }
+
+  .badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 99px;
+    border: 1px solid var(--line2);
+    color: var(--muted);
+    background: #0a1220;
+  }
+  .badge.good { color: #9ef0c9; border-color: #2a7655; background: #0c2318; }
+  .badge.warn { color: #ffd7a3; border-color: #6f4c20; background: #231a0d; }
+
+  .iframe-shell {
+    flex: 1;
+    position: relative;
+    background: #050810;
+    overflow: hidden;
+  }
+  iframe {
+    width: 100%; height: 100%;
+    border: 0;
+    background: white;
+  }
+  .iframe-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(500px 300px at 50% 40%, #1a3250cc, #050810ee);
+    color: var(--muted);
+    text-align: center;
+    padding: 24px;
+  }
+  .iframe-overlay.show { display: flex; }
+  .iframe-overlay .card {
+    max-width: 460px;
+    border: 1px solid var(--line2);
+    border-radius: 12px;
+    background: #0b1729cc;
+    padding: 20px;
+  }
+  .iframe-overlay h3 { margin: 0 0 6px; color: var(--warn); font-size: 15px; }
+  .iframe-overlay p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
+
+  .editor-shell {
+    flex: 1;
+    display: grid;
+    grid-template-rows: 1fr 160px;
+    min-height: 0;
+  }
+  .editor-wrap {
+    position: relative;
+    min-height: 0;
+    background: #070c16;
+  }
+  textarea#code {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    resize: none;
+    background: #070c16;
+    color: #d5ecff;
+    padding: 12px 14px;
+    font-family: "Consolas", "Menlo", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    tab-size: 2;
+    outline: none;
+  }
+
+  .actions-log {
+    border-top: 1px solid var(--line);
+    background: #0a1220;
+    overflow: auto;
+    min-height: 0;
+  }
+  .actions-log header {
+    position: sticky; top: 0;
+    background: #0a1220;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex; gap: 10px; align-items: center;
+    letter-spacing: 0.06em;
+  }
+  .action-row {
+    padding: 5px 10px;
+    border-bottom: 1px solid #132137;
+    font-family: "Consolas", monospace;
+    font-size: 11px;
+    display: flex; gap: 8px;
+    color: #b9cde6;
+  }
+  .action-row .idx { color: var(--muted); width: 22px; }
+  .action-row .type {
+    padding: 0 5px; border-radius: 4px; font-size: 10px;
+    background: #1a2d4b; color: #9ed3ff;
+    align-self: flex-start; margin-top: 1px;
+  }
+  .action-row.replay-cur { background: #15294a; }
+
+  .status {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 10px;
+    border-top: 1px solid var(--line);
+    background: #0a1220;
+  }
+  .status.rec { color: #ffc7d2; }
+  .status.ok { color: #b3f0d4; }
+  .status.err { color: #ffc2ca; }
+
+  .sep {
+    width: 1px; height: 18px;
+    background: var(--line);
+    margin: 0 4px;
+  }
+
+  @media (max-width: 920px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .pane { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">PLAYWRIGHT <span class="dim">record playground</span></div>
+  <span class="spacer"></span>
+  <span class="hint">
+    <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">R</span> record &middot;
+    <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">P</span> replay &middot;
+    <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">L</span> clear
+  </span>
+</div>
+
+<div class="app">
+
+  <!-- LEFT PANE: iframe + URL bar -->
+  <section class="pane">
+    <div class="menu">
+      <button id="backBtn" title="Back">&larr;</button>
+      <button id="reloadBtn" title="Reload">&#x21bb;</button>
+      <input id="urlInput" class="url" type="text" placeholder="https://...">
+      <button id="goBtn" class="btn-primary">Go</button>
+      <span class="sep"></span>
+      <select id="presetSelect" title="Preset sites">
+        <option value="">Presets...</option>
+        <optgroup label="Local fixtures (record/replay)">
+          <option value="fixtures/login.html">Login form</option>
+          <option value="fixtures/todo.html">Todo list</option>
+          <option value="fixtures/form.html">Contact form</option>
+        </optgroup>
+        <optgroup label="Cross-origin (view-only)">
+          <option value="https://example.com">example.com</option>
+          <option value="https://demo.playwright.dev/todomvc/">Playwright TodoMVC</option>
+          <option value="https://httpbin.org/forms/post">httpbin form</option>
+          <option value="https://vinothqaacademy.com/iframe/">vinothqaacademy iframe</option>
+        </optgroup>
+      </select>
+      <span class="sep"></span>
+      <button class="btn shortcut" data-url="fixtures/login.html">Login</button>
+      <button class="btn shortcut" data-url="fixtures/todo.html">Todo</button>
+      <button class="btn shortcut" data-url="fixtures/form.html">Form</button>
+      <span class="spacer"></span>
+      <span id="originBadge" class="badge">idle</span>
+      <button id="openNew" class="btn-ghost" title="Open in new tab">&#x2197;</button>
+    </div>
+
+    <div class="iframe-shell">
+      <iframe id="target" src="about:blank" referrerpolicy="no-referrer"></iframe>
+      <div id="overlay" class="iframe-overlay">
+        <div class="card">
+          <h3 id="overlayTitle">Unable to record on this page</h3>
+          <p id="overlayBody">
+            The browser will not let us read events inside a cross-origin iframe.
+            You can still interact with it normally and write Playwright code by hand on the right.
+          </p>
+          <p><button id="overlayHide" class="btn-ghost">Dismiss</button></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT PANE: editor + recorder controls -->
+  <section class="pane">
+    <div class="menu">
+      <button id="recBtn" class="btn-record" title="Toggle recording (Ctrl+Shift+R)">
+        <span id="recDot">&#9679;</span> <span id="recLabel">Record</span>
+      </button>
+      <button id="replayBtn" class="btn-good" title="Replay (Ctrl+Shift+P)">&#9658; Replay</button>
+      <button id="stopReplayBtn" disabled>&#9632; Stop</button>
+      <span class="sep"></span>
+      <button id="assertBtn" title="Add assertion for last recorded element">+ Assert visible</button>
+      <button id="screenshotBtn" title="Add screenshot step">+ Screenshot</button>
+      <span class="sep"></span>
+      <select id="langSelect" title="Output language">
+        <option value="ts">TypeScript</option>
+        <option value="js">JavaScript</option>
+        <option value="python">Python</option>
+      </select>
+      <span class="spacer"></span>
+      <button id="copyBtn" title="Copy code (Ctrl+Shift+C)">Copy</button>
+      <button id="downloadBtn" title="Download .spec">Download</button>
+      <button id="clearBtn" title="Clear (Ctrl+Shift+L)">Clear</button>
+    </div>
+
+    <div class="editor-shell">
+      <div class="editor-wrap">
+        <textarea id="code" spellcheck="false" placeholder="// Generated Playwright code will stream here while you record.
+// You can also type freely between recording sessions.
+"></textarea>
+      </div>
+      <div class="actions-log">
+        <header>
+          <span>RECORDED ACTIONS</span>
+          <span class="spacer"></span>
+          <span id="actionCount">0</span>
+        </header>
+        <div id="actionsList"></div>
+      </div>
+    </div>
+    <div id="status" class="status">Ready. Pick a preset or type a URL.</div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+// ==========================================================
+// STATE
+// ==========================================================
+const state = {
+  currentUrl: "",
+  sameOrigin: false,
+  recording: false,
+  replaying: false,
+  actions: [],          // [{type, selector, value?, key?, roleName?, ts}]
+  lastElementSelector: null,
+  listeners: [],        // [{el, type, fn}]
+  lang: "ts"
+};
+
+const $ = (id) => document.getElementById(id);
+const iframe = $("target");
+
+// ==========================================================
+// URL HANDLING
+// ==========================================================
+function navigate(url) {
+  if (!url) return;
+  state.currentUrl = url;
+  $("urlInput").value = url;
+  iframe.src = url;
+  setStatus("Loading " + url + " ...");
+  hideOverlay();
+}
+
+function detectSameOrigin() {
+  try {
+    // Accessing iframe.contentDocument will throw if cross-origin.
+    const doc = iframe.contentDocument;
+    if (!doc) return false;
+    // Some browsers return a doc object but reading it throws later.
+    void doc.readyState;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function onIframeLoad() {
+  state.sameOrigin = detectSameOrigin();
+  const badge = $("originBadge");
+  if (state.sameOrigin) {
+    badge.textContent = "same-origin: recording enabled";
+    badge.className = "badge good";
+    instrumentIframe();
+    setStatus("Loaded. Press Record (Ctrl+Shift+R) to start.");
+  } else {
+    badge.textContent = "cross-origin: view-only";
+    badge.className = "badge warn";
+    teardownListeners();
+    showOverlay(
+      "View-only page",
+      "This page is on a different origin. Browser security prevents reading events inside it. " +
+      "You can still interact with it and write Playwright code by hand. " +
+      "For full record/replay, pick a local fixture preset."
+    );
+    setStatus("Cross-origin page loaded (view-only).");
+  }
+}
+
+iframe.addEventListener("load", onIframeLoad);
+
+function showOverlay(title, body) {
+  $("overlayTitle").textContent = title;
+  $("overlayBody").textContent = body;
+  $("overlay").classList.add("show");
+}
+function hideOverlay() { $("overlay").classList.remove("show"); }
+$("overlayHide").addEventListener("click", hideOverlay);
+
+// ==========================================================
+// SELECTOR GENERATION
+// ==========================================================
+function escapeStr(s) {
+  return String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+function uniqueInDoc(doc, selector) {
+  try { return doc.querySelectorAll(selector).length === 1; }
+  catch { return false; }
+}
+function bestSelector(el) {
+  if (!el || el.nodeType !== 1) return null;
+  const doc = el.ownerDocument;
+
+  // 1. data-testid
+  const testid = el.getAttribute("data-testid");
+  if (testid) {
+    return { kind: "testid", value: testid, code: `getByTestId('${escapeStr(testid)}')` };
+  }
+
+  // 2. unique id
+  const id = el.id;
+  if (id && uniqueInDoc(doc, "#" + CSS.escape(id))) {
+    return { kind: "id", value: "#" + id, code: `locator('#${escapeStr(id)}')` };
+  }
+
+  // 3. role + accessible name
+  const role = el.getAttribute("role") || implicitRole(el);
+  const name = accessibleName(el);
+  if (role && name && uniqueByRole(doc, role, name)) {
+    return { kind: "role", value: role + ":" + name, code: `getByRole('${escapeStr(role)}', { name: '${escapeStr(name)}' })` };
+  }
+
+  // 4. label (for inputs)
+  if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") {
+    const label = labelFor(el);
+    if (label) {
+      return { kind: "label", value: label, code: `getByLabel('${escapeStr(label)}')` };
+    }
+  }
+
+  // 5. text content (short) for buttons / links
+  if (/^(BUTTON|A)$/.test(el.tagName)) {
+    const txt = (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
+    if (txt && uniqueByText(doc, txt)) {
+      return { kind: "text", value: txt, code: `getByText('${escapeStr(txt)}', { exact: true })` };
+    }
+  }
+
+  // 6. CSS path fallback
+  const css = cssPath(el);
+  return { kind: "css", value: css, code: `locator('${escapeStr(css)}')` };
+}
+
+function implicitRole(el) {
+  const tag = el.tagName;
+  if (tag === "BUTTON") return "button";
+  if (tag === "A" && el.hasAttribute("href")) return "link";
+  if (tag === "INPUT") {
+    const t = (el.type || "text").toLowerCase();
+    if (t === "checkbox") return "checkbox";
+    if (t === "radio") return "radio";
+    if (t === "submit" || t === "button") return "button";
+    return "textbox";
+  }
+  if (tag === "SELECT") return "combobox";
+  if (tag === "TEXTAREA") return "textbox";
+  if (/^H[1-6]$/.test(tag)) return "heading";
+  return null;
+}
+function accessibleName(el) {
+  const aria = el.getAttribute("aria-label");
+  if (aria) return aria.trim();
+  const labelled = el.getAttribute("aria-labelledby");
+  if (labelled) {
+    const lab = el.ownerDocument.getElementById(labelled);
+    if (lab) return (lab.textContent || "").trim();
+  }
+  if (/^(BUTTON|A)$/.test(el.tagName)) {
+    const t = (el.textContent || "").trim().replace(/\s+/g, " ");
+    if (t) return t.slice(0, 60);
+  }
+  const t = el.getAttribute("title");
+  if (t) return t;
+  return "";
+}
+function labelFor(el) {
+  if (el.id) {
+    const lab = el.ownerDocument.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    if (lab) return (lab.textContent || "").trim();
+  }
+  const parentLabel = el.closest("label");
+  if (parentLabel) {
+    const clone = parentLabel.cloneNode(true);
+    // remove the input text
+    clone.querySelectorAll("input,select,textarea").forEach(n => n.remove());
+    return (clone.textContent || "").trim();
+  }
+  return "";
+}
+function uniqueByRole(doc, role, name) {
+  const all = doc.querySelectorAll("*");
+  let count = 0;
+  for (const el of all) {
+    if ((el.getAttribute("role") || implicitRole(el)) === role && accessibleName(el) === name) {
+      count++;
+      if (count > 1) return false;
+    }
+  }
+  return count === 1;
+}
+function uniqueByText(doc, text) {
+  const all = doc.querySelectorAll("button,a");
+  let count = 0;
+  for (const el of all) {
+    const t = (el.textContent || "").trim().replace(/\s+/g, " ");
+    if (t === text) { count++; if (count > 1) return false; }
+  }
+  return count === 1;
+}
+function cssPath(el) {
+  const parts = [];
+  let cur = el;
+  while (cur && cur.nodeType === 1 && cur.tagName !== "HTML") {
+    let sel = cur.tagName.toLowerCase();
+    if (cur.id) { sel += "#" + CSS.escape(cur.id); parts.unshift(sel); break; }
+    const parent = cur.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children).filter(c => c.tagName === cur.tagName);
+      if (siblings.length > 1) {
+        const idx = siblings.indexOf(cur) + 1;
+        sel += `:nth-of-type(${idx})`;
+      }
+    }
+    parts.unshift(sel);
+    cur = cur.parentElement;
+  }
+  return parts.join(" > ");
+}
+
+// ==========================================================
+// RECORDER
+// ==========================================================
+function instrumentIframe() {
+  teardownListeners();
+  if (!state.sameOrigin) return;
+  const doc = iframe.contentDocument;
+  if (!doc) return;
+
+  addL(doc, "click", onClick, true);
+  addL(doc, "input", onInput, true);
+  addL(doc, "change", onChange, true);
+  addL(doc, "keydown", onKeyDown, true);
+  addL(doc, "submit", onSubmit, true);
+}
+function addL(target, type, fn, capture) {
+  target.addEventListener(type, fn, capture);
+  state.listeners.push({ el: target, type, fn, capture });
+}
+function teardownListeners() {
+  for (const { el, type, fn, capture } of state.listeners) {
+    try { el.removeEventListener(type, fn, capture); } catch {}
+  }
+  state.listeners = [];
+}
+
+function onClick(e) {
+  if (!state.recording || state.replaying) return;
+  const el = e.target;
+  // For inputs whose click generates an input event too (checkbox/radio),
+  // record click; fills are handled by input events.
+  const sel = bestSelector(el);
+  if (!sel) return;
+  state.lastElementSelector = sel;
+  addAction({ type: "click", selectorObj: sel });
+}
+function onInput(e) {
+  if (!state.recording || state.replaying) return;
+  const el = e.target;
+  if (!(el instanceof iframe.contentWindow.HTMLInputElement ||
+        el instanceof iframe.contentWindow.HTMLTextAreaElement)) return;
+  const t = (el.type || "text").toLowerCase();
+  if (t === "checkbox" || t === "radio") return; // handled by change/click
+  const sel = bestSelector(el);
+  if (!sel) return;
+  state.lastElementSelector = sel;
+  // Collapse consecutive fills to the same selector into the latest value.
+  const last = state.actions[state.actions.length - 1];
+  if (last && last.type === "fill" && last.selectorObj.value === sel.value) {
+    last.value = el.value;
+    refreshActionsView();
+    rebuildCode();
+    return;
+  }
+  addAction({ type: "fill", selectorObj: sel, value: el.value });
+}
+function onChange(e) {
+  if (!state.recording || state.replaying) return;
+  const el = e.target;
+  if (el instanceof iframe.contentWindow.HTMLSelectElement) {
+    const sel = bestSelector(el);
+    if (!sel) return;
+    state.lastElementSelector = sel;
+    addAction({ type: "selectOption", selectorObj: sel, value: el.value });
+  } else if (el instanceof iframe.contentWindow.HTMLInputElement) {
+    const t = (el.type || "").toLowerCase();
+    if (t === "checkbox") {
+      const sel = bestSelector(el);
+      if (!sel) return;
+      state.lastElementSelector = sel;
+      addAction({ type: el.checked ? "check" : "uncheck", selectorObj: sel });
+    } else if (t === "radio") {
+      const sel = bestSelector(el);
+      if (!sel) return;
+      state.lastElementSelector = sel;
+      addAction({ type: "check", selectorObj: sel });
+    }
+  }
+}
+function onKeyDown(e) {
+  if (!state.recording || state.replaying) return;
+  const important = ["Enter", "Escape", "Tab"];
+  if (!important.includes(e.key)) return;
+  const el = e.target;
+  const sel = bestSelector(el);
+  if (!sel) return;
+  addAction({ type: "press", selectorObj: sel, key: e.key });
+}
+function onSubmit(e) {
+  // We already capture submit via button click in most cases; skip duplicate.
+}
+
+function addAction(a) {
+  a.ts = Date.now();
+  state.actions.push(a);
+  refreshActionsView();
+  rebuildCode();
+}
+
+// ==========================================================
+// CODE GENERATION
+// ==========================================================
+function rebuildCode() {
+  const lang = $("langSelect").value;
+  state.lang = lang;
+  let code = "";
+  if (lang === "ts" || lang === "js") {
+    const ext = lang === "ts" ? "" : "";
+    code += (lang === "ts")
+      ? `import { test, expect } from '@playwright/test';\n\n`
+      : `const { test, expect } = require('@playwright/test');\n\n`;
+    code += `test('recorded flow', async ({ page }) => {\n`;
+    code += `  await page.goto(${JSON.stringify(fullUrl())});\n`;
+    for (const a of state.actions) {
+      code += "  " + renderJsAction(a) + "\n";
+    }
+    code += `});\n`;
+  } else if (lang === "python") {
+    code += `from playwright.sync_api import sync_playwright, expect\n\n`;
+    code += `def test_recorded_flow():\n`;
+    code += `    with sync_playwright() as p:\n`;
+    code += `        browser = p.chromium.launch()\n`;
+    code += `        page = browser.new_page()\n`;
+    code += `        page.goto(${JSON.stringify(fullUrl())})\n`;
+    for (const a of state.actions) {
+      code += "        " + renderPyAction(a) + "\n";
+    }
+    code += `        browser.close()\n`;
+  }
+  $("code").value = code;
+}
+
+function fullUrl() {
+  const u = state.currentUrl || $("urlInput").value || "about:blank";
+  try { return new URL(u, location.href).toString(); } catch { return u; }
+}
+
+function renderJsAction(a) {
+  const loc = `page.${a.selectorObj.code}`;
+  switch (a.type) {
+    case "click": return `await ${loc}.click();`;
+    case "fill": return `await ${loc}.fill('${escapeStr(a.value || "")}');`;
+    case "press": return `await ${loc}.press('${a.key}');`;
+    case "check": return `await ${loc}.check();`;
+    case "uncheck": return `await ${loc}.uncheck();`;
+    case "selectOption": return `await ${loc}.selectOption('${escapeStr(a.value || "")}');`;
+    case "assertVisible": return `await expect(${loc}).toBeVisible();`;
+    case "screenshot": return `await page.screenshot({ path: '${a.name || "screenshot.png"}' });`;
+    default: return `// unknown action ${a.type}`;
+  }
+}
+function renderPyAction(a) {
+  // Python playwright uses snake_case and positional args usually.
+  const loc = `page.${jsToPyLocator(a.selectorObj.code)}`;
+  switch (a.type) {
+    case "click": return `${loc}.click()`;
+    case "fill": return `${loc}.fill('${escapeStr(a.value || "")}')`;
+    case "press": return `${loc}.press('${a.key}')`;
+    case "check": return `${loc}.check()`;
+    case "uncheck": return `${loc}.uncheck()`;
+    case "selectOption": return `${loc}.select_option('${escapeStr(a.value || "")}')`;
+    case "assertVisible": return `expect(${loc}).to_be_visible()`;
+    case "screenshot": return `page.screenshot(path='${a.name || "screenshot.png"}')`;
+    default: return `# unknown action ${a.type}`;
+  }
+}
+function jsToPyLocator(c) {
+  // naive conversion of the locator string
+  return c
+    .replace(/getByTestId/g, "get_by_test_id")
+    .replace(/getByRole/g, "get_by_role")
+    .replace(/getByLabel/g, "get_by_label")
+    .replace(/getByText/g, "get_by_text");
+}
+
+// ==========================================================
+// ACTIONS LIST VIEW
+// ==========================================================
+function refreshActionsView() {
+  const list = $("actionsList");
+  list.innerHTML = "";
+  state.actions.forEach((a, i) => {
+    const row = document.createElement("div");
+    row.className = "action-row";
+    row.dataset.idx = String(i);
+    const idx = document.createElement("div"); idx.className = "idx"; idx.textContent = i + 1; row.appendChild(idx);
+    const type = document.createElement("div"); type.className = "type"; type.textContent = a.type; row.appendChild(type);
+    const desc = document.createElement("div");
+    desc.style.flex = "1";
+    desc.textContent = describe(a);
+    row.appendChild(desc);
+    list.appendChild(row);
+  });
+  $("actionCount").textContent = state.actions.length;
+}
+function describe(a) {
+  const s = a.selectorObj ? a.selectorObj.value : "";
+  switch (a.type) {
+    case "click": return s;
+    case "fill": return s + " = " + JSON.stringify(a.value || "");
+    case "press": return s + " key=" + a.key;
+    case "check": case "uncheck": return s;
+    case "selectOption": return s + " -> " + JSON.stringify(a.value || "");
+    case "assertVisible": return "expect(" + s + ").toBeVisible()";
+    case "screenshot": return a.name || "screenshot.png";
+    default: return s;
+  }
+}
+function highlightReplayStep(i) {
+  document.querySelectorAll(".action-row.replay-cur").forEach(n => n.classList.remove("replay-cur"));
+  const row = document.querySelector(`.action-row[data-idx="${i}"]`);
+  if (row) { row.classList.add("replay-cur"); row.scrollIntoView({ block: "nearest" }); }
+}
+
+// ==========================================================
+// REPLAY
+// ==========================================================
+function reloadIframeAndWait() {
+  return new Promise((resolve, reject) => {
+    const url = state.currentUrl || $("urlInput").value.trim();
+    if (!url) { reject(new Error("no URL to reload")); return; }
+    let settled = false;
+    const onLoad = () => {
+      if (settled) return;
+      settled = true;
+      iframe.removeEventListener("load", onLoad);
+      // give the page one tick to attach its own listeners
+      setTimeout(resolve, 50);
+    };
+    iframe.addEventListener("load", onLoad);
+    // Force a reload even if the src is identical
+    iframe.src = "about:blank";
+    setTimeout(() => { iframe.src = url; }, 30);
+    // safety timeout
+    setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      iframe.removeEventListener("load", onLoad);
+      reject(new Error("iframe load timeout"));
+    }, 8000);
+  });
+}
+
+async function replay() {
+  if (!state.sameOrigin) { setStatus("Replay only works on same-origin fixtures.", "err"); return; }
+  if (state.actions.length === 0) { setStatus("Nothing to replay.", "err"); return; }
+  state.replaying = true;
+  $("replayBtn").disabled = true;
+  $("stopReplayBtn").disabled = false;
+  $("recBtn").disabled = true;
+  setStatus("Resetting page...", "ok");
+
+  try {
+    await reloadIframeAndWait();
+  } catch (err) {
+    state.replaying = false;
+    $("replayBtn").disabled = false;
+    $("stopReplayBtn").disabled = true;
+    $("recBtn").disabled = false;
+    setStatus("Reset failed: " + err.message, "err");
+    return;
+  }
+  // re-check origin after reload; onIframeLoad also runs and re-instruments
+  state.sameOrigin = detectSameOrigin();
+  if (!state.sameOrigin) {
+    state.replaying = false;
+    $("replayBtn").disabled = false;
+    $("stopReplayBtn").disabled = true;
+    $("recBtn").disabled = false;
+    setStatus("Page became cross-origin after reload; cannot replay.", "err");
+    return;
+  }
+  setStatus("Replaying...", "ok");
+
+  const doc = iframe.contentDocument;
+  for (let i = 0; i < state.actions.length; i++) {
+    if (!state.replaying) break;
+    const a = state.actions[i];
+    highlightReplayStep(i);
+    try {
+      const el = resolveElement(doc, a.selectorObj);
+      if (!el) { setStatus(`Step ${i+1}: element not found for ${a.selectorObj.value}`, "err"); break; }
+      await performAction(el, a);
+    } catch (err) {
+      setStatus(`Step ${i+1} failed: ${err.message}`, "err");
+      break;
+    }
+    await sleep(300);
+  }
+
+  state.replaying = false;
+  $("replayBtn").disabled = false;
+  $("stopReplayBtn").disabled = true;
+  $("recBtn").disabled = false;
+  setStatus("Replay finished.", "ok");
+}
+function stopReplay() { state.replaying = false; }
+
+function resolveElement(doc, selObj) {
+  if (!selObj) return null;
+  switch (selObj.kind) {
+    case "testid": return doc.querySelector(`[data-testid="${selObj.value}"]`);
+    case "id":     return doc.querySelector(selObj.value);
+    case "label":  return resolveByLabel(doc, selObj.value);
+    case "text":   return resolveByText(doc, selObj.value);
+    case "role":   return resolveByRole(doc, selObj.value);
+    case "css":    return doc.querySelector(selObj.value);
+    default:       return null;
+  }
+}
+function resolveByLabel(doc, label) {
+  const labels = Array.from(doc.querySelectorAll("label"));
+  for (const lab of labels) {
+    const t = (lab.textContent || "").trim();
+    if (t === label) {
+      if (lab.htmlFor) return doc.getElementById(lab.htmlFor);
+      return lab.querySelector("input,select,textarea");
+    }
+  }
+  return null;
+}
+function resolveByText(doc, text) {
+  const nodes = doc.querySelectorAll("button,a");
+  for (const n of nodes) {
+    const t = (n.textContent || "").trim().replace(/\s+/g, " ");
+    if (t === text) return n;
+  }
+  return null;
+}
+function resolveByRole(doc, value) {
+  const [role, name] = value.split(":");
+  const all = doc.querySelectorAll("*");
+  for (const el of all) {
+    const r = el.getAttribute("role") || implicitRole(el);
+    if (r === role && accessibleName(el) === name) return el;
+  }
+  return null;
+}
+
+async function performAction(el, a) {
+  const win = iframe.contentWindow;
+  const nativeInputSetter = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, "value").set;
+  const nativeTextareaSetter = Object.getOwnPropertyDescriptor(win.HTMLTextAreaElement.prototype, "value").set;
+  const nativeSelectSetter = Object.getOwnPropertyDescriptor(win.HTMLSelectElement.prototype, "value").set;
+
+  function setValue(el, value) {
+    const setter = el.tagName === "TEXTAREA" ? nativeTextareaSetter
+                 : el.tagName === "SELECT" ? nativeSelectSetter
+                 : nativeInputSetter;
+    setter.call(el, value);
+    el.dispatchEvent(new win.Event("input", { bubbles: true }));
+    el.dispatchEvent(new win.Event("change", { bubbles: true }));
+  }
+
+  el.scrollIntoView({ block: "center", inline: "center" });
+
+  switch (a.type) {
+    case "click":
+      el.focus();
+      el.click();
+      break;
+    case "fill":
+      el.focus();
+      setValue(el, a.value || "");
+      break;
+    case "press": {
+      const opts = { key: a.key, code: a.key, bubbles: true };
+      el.dispatchEvent(new win.KeyboardEvent("keydown", opts));
+      el.dispatchEvent(new win.KeyboardEvent("keyup", opts));
+      break;
+    }
+    case "check":
+      if (!el.checked) el.click();
+      break;
+    case "uncheck":
+      if (el.checked) el.click();
+      break;
+    case "selectOption":
+      setValue(el, a.value || "");
+      break;
+    case "assertVisible": {
+      const rect = el.getBoundingClientRect();
+      const visible = rect.width > 0 && rect.height > 0;
+      if (!visible) throw new Error("element not visible");
+      break;
+    }
+    case "screenshot":
+      // no-op in browser replay; Playwright handles in real runtime.
+      break;
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ==========================================================
+// RECORD CONTROLS
+// ==========================================================
+function toggleRecord() {
+  if (state.replaying) return;
+  state.recording = !state.recording;
+  const btn = $("recBtn");
+  btn.classList.toggle("active", state.recording);
+  $("recLabel").textContent = state.recording ? "Recording" : "Record";
+  if (state.recording) {
+    if (!state.sameOrigin) {
+      state.recording = false;
+      btn.classList.remove("active");
+      $("recLabel").textContent = "Record";
+      setStatus("Cannot record on cross-origin pages.", "err");
+      return;
+    }
+    setStatus("Recording. Interact with the page on the left.", "rec");
+  } else {
+    setStatus("Recording stopped. " + state.actions.length + " action(s) captured.", "ok");
+  }
+}
+
+function clearAll() {
+  state.actions = [];
+  state.lastElementSelector = null;
+  refreshActionsView();
+  rebuildCode();
+  setStatus("Cleared.");
+}
+
+function addAssert() {
+  if (!state.lastElementSelector) {
+    setStatus("No recent element to assert. Record a click first.", "err");
+    return;
+  }
+  addAction({ type: "assertVisible", selectorObj: state.lastElementSelector });
+}
+
+function addScreenshot() {
+  addAction({ type: "screenshot", name: `step-${state.actions.length + 1}.png`, selectorObj: { kind: "none", value: "page", code: "" } });
+}
+
+function copyCode() {
+  const el = $("code");
+  el.select();
+  try { document.execCommand("copy"); setStatus("Code copied.", "ok"); }
+  catch { setStatus("Copy failed.", "err"); }
+  window.getSelection().removeAllRanges();
+}
+
+function downloadCode() {
+  const lang = $("langSelect").value;
+  const ext = lang === "python" ? "py" : (lang === "ts" ? "spec.ts" : "spec.js");
+  const blob = new Blob([$("code").value], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "recorded." + ext;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ==========================================================
+// WIRING
+// ==========================================================
+$("goBtn").addEventListener("click", () => navigate($("urlInput").value.trim()));
+$("urlInput").addEventListener("keydown", (e) => { if (e.key === "Enter") navigate($("urlInput").value.trim()); });
+$("reloadBtn").addEventListener("click", () => { if (state.currentUrl) navigate(state.currentUrl); });
+$("backBtn").addEventListener("click", () => {
+  try { iframe.contentWindow.history.back(); } catch { history.back(); }
+});
+$("openNew").addEventListener("click", () => { if (state.currentUrl) window.open(fullUrl(), "_blank"); });
+$("presetSelect").addEventListener("change", (e) => {
+  if (e.target.value) navigate(e.target.value);
+  e.target.selectedIndex = 0;
+});
+document.querySelectorAll("button.shortcut").forEach(b => {
+  b.addEventListener("click", () => navigate(b.dataset.url));
+});
+
+$("recBtn").addEventListener("click", toggleRecord);
+$("replayBtn").addEventListener("click", replay);
+$("stopReplayBtn").addEventListener("click", stopReplay);
+$("clearBtn").addEventListener("click", clearAll);
+$("copyBtn").addEventListener("click", copyCode);
+$("downloadBtn").addEventListener("click", downloadCode);
+$("assertBtn").addEventListener("click", addAssert);
+$("screenshotBtn").addEventListener("click", addScreenshot);
+$("langSelect").addEventListener("change", rebuildCode);
+
+// Keyboard shortcuts
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey && e.shiftKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === "r") { e.preventDefault(); toggleRecord(); }
+  else if (k === "p") { e.preventDefault(); replay(); }
+  else if (k === "l") { e.preventDefault(); clearAll(); }
+  else if (k === "c") { e.preventDefault(); copyCode(); }
+});
+
+function setStatus(text, kind) {
+  const el = $("status");
+  el.textContent = text;
+  el.className = "status" + (kind ? " " + kind : "");
+}
+
+// ==========================================================
+// BOOT
+// ==========================================================
+rebuildCode();
+navigate("fixtures/login.html");
+</script>
+</body>
+</html>

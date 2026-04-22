@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login Fixture</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #12203a;
+    --line: #223659;
+    --text: #e7efff;
+    --muted: #98a9c4;
+    --accent: #5fc9ff;
+    --good: #37d09f;
+    --bad: #ff6f7f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      radial-gradient(800px 300px at 80% -10%, #1a3b5e 0%, transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Inter", system-ui, sans-serif;
+  }
+  .wrap { max-width: 420px; margin: 60px auto; padding: 24px; }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 22px;
+    box-shadow: 0 20px 60px #00000044;
+  }
+  h1 { margin: 0 0 4px; font-size: 20px; color: var(--accent); letter-spacing: 0.02em; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, button {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #0d1729;
+    color: var(--text);
+    font-size: 14px;
+  }
+  button {
+    margin-top: 16px;
+    background: #1b2f52;
+    border-color: #2b4a7d;
+    cursor: pointer;
+  }
+  button:hover { background: #23406f; }
+  .row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 10px; font-size: 13px; color: var(--muted);
+  }
+  .hint {
+    margin-top: 14px; font-size: 12px; color: var(--muted);
+    border-top: 1px dashed var(--line); padding-top: 10px;
+  }
+  .result { margin-top: 14px; font-size: 13px; min-height: 18px; }
+  .ok { color: var(--good); }
+  .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Sign in</h1>
+      <div class="sub">Same-origin fixture for recording.</div>
+
+      <label for="username">Username</label>
+      <input id="username" data-testid="login-username" autocomplete="off">
+
+      <label for="password">Password</label>
+      <input id="password" type="password" data-testid="login-password" autocomplete="off">
+
+      <div class="row">
+        <input id="remember" type="checkbox" data-testid="login-remember" style="width:auto;">
+        <label for="remember" style="margin:0;">Remember me</label>
+      </div>
+
+      <button id="submit" data-testid="login-submit">Sign in</button>
+
+      <div id="result" class="result" role="status"></div>
+
+      <div class="hint">
+        Try <b>admin</b> / <b>password123</b>.
+      </div>
+    </div>
+  </div>
+
+<script>
+  const result = document.getElementById("result");
+  document.getElementById("submit").addEventListener("click", (e) => {
+    e.preventDefault();
+    const u = document.getElementById("username").value.trim();
+    const p = document.getElementById("password").value;
+    if (u === "admin" && p === "password123") {
+      result.textContent = "Welcome, " + u + ".";
+      result.className = "result ok";
+    } else {
+      result.textContent = "Invalid credentials.";
+      result.className = "result bad";
+    }
+  });
+</script>
+</body>
+</html>

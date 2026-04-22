@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Form Fixture</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #12203a;
+    --line: #223659;
+    --text: #e7efff;
+    --muted: #98a9c4;
+    --accent: #5fc9ff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      radial-gradient(800px 300px at 50% -10%, #1a3b5e 0%, transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Inter", system-ui, sans-serif;
+  }
+  .wrap { max-width: 600px; margin: 40px auto; padding: 20px; }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 20px;
+  }
+  h1 { margin: 0 0 4px; font-size: 20px; color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 5px; }
+  input, select, textarea, button {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 12px;
+    background: #0d1729;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .inline {
+    display: flex; align-items: center; gap: 8px;
+    margin: 6px 0; font-size: 13px; color: var(--text);
+  }
+  .inline input { width: auto; }
+  button {
+    margin-top: 14px;
+    background: #1b2f52; border-color: #2b4a7d; cursor: pointer;
+  }
+  button:hover { background: #23406f; }
+  #out {
+    margin-top: 14px;
+    padding: 10px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: pre-wrap;
+    min-height: 24px;
+  }
+  fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Contact form</h1>
+      <div class="sub">Multi-input fixture: text, select, radio, checkbox, textarea, submit.</div>
+
+      <form id="contact">
+        <div class="row2">
+          <div>
+            <label for="first">First name</label>
+            <input id="first" data-testid="form-first" autocomplete="off">
+          </div>
+          <div>
+            <label for="last">Last name</label>
+            <input id="last" data-testid="form-last" autocomplete="off">
+          </div>
+        </div>
+
+        <label for="email">Email</label>
+        <input id="email" type="email" data-testid="form-email" autocomplete="off">
+
+        <label for="country">Country</label>
+        <select id="country" data-testid="form-country">
+          <option value="">Select...</option>
+          <option value="us">United States</option>
+          <option value="ca">Canada</option>
+          <option value="uk">United Kingdom</option>
+          <option value="de">Germany</option>
+          <option value="jp">Japan</option>
+        </select>
+
+        <fieldset style="margin-top:12px;">
+          <legend>Contact preference</legend>
+          <div class="inline">
+            <input type="radio" id="pref-email" name="pref" value="email" data-testid="form-pref-email">
+            <label for="pref-email" style="margin:0;">Email</label>
+          </div>
+          <div class="inline">
+            <input type="radio" id="pref-phone" name="pref" value="phone" data-testid="form-pref-phone">
+            <label for="pref-phone" style="margin:0;">Phone</label>
+          </div>
+        </fieldset>
+
+        <div class="inline" style="margin-top:12px;">
+          <input type="checkbox" id="terms" data-testid="form-terms">
+          <label for="terms" style="margin:0;">I agree to the terms</label>
+        </div>
+
+        <label for="notes">Notes</label>
+        <textarea id="notes" data-testid="form-notes"></textarea>
+
+        <button type="submit" data-testid="form-submit">Submit</button>
+      </form>
+
+      <div id="out" data-testid="form-output"></div>
+    </div>
+  </div>
+
+<script>
+  const form = document.getElementById("contact");
+  const out = document.getElementById("out");
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = {
+      first: form.first.value,
+      last: form.last.value,
+      email: form.email.value,
+      country: form.country.value,
+      pref: (form.querySelector('input[name="pref"]:checked') || {}).value || "",
+      terms: form.terms.checked,
+      notes: form.notes.value
+    };
+    out.textContent = "Submitted: " + JSON.stringify(data, null, 2);
+  });
+</script>
+</body>
+</html>

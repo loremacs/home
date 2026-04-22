@@ -1,0 +1,25 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Node (in case we later add tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Build / deploy artifacts
+dist/
+build/
+.netlify/
+.vercel/
+.output/
+
+# Env
+.env
+.env.local
+.env.*.local
