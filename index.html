@@ -290,10 +290,13 @@
 // The initial rank (lower = higher priority) comes from this ordering;
 // click counts stored in localStorage can reorder over time.
 // =====================================================================
+const PROJECTS_BASE = "projects/";
+const PERSPECTIVE = 1400;
+
 const CATALOG = [
-  { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: "playground/" },
-  { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: "emergent-lab/" },
-  { id: "triptych",     title: "Triptych of Passage",   desc: "SNES-scale top-down POC with curtain-lens perception.", href: "triptych/" },
+  { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: PROJECTS_BASE + "playwright/" },
+  { id: "emergent",     title: "Emergent Logic Lab",    desc: "Editable rules, live self-tests, self-healing runtime.", href: PROJECTS_BASE + "emergent-lab/" },
+  { id: "triptych",     title: "Triptych of Passage",   desc: "SNES-scale top-down POC with curtain-lens perception.", href: PROJECTS_BASE + "triptych/" },
   { id: "prism",        title: "Prism Field",           desc: "Signals get sorted." },
   { id: "loom",         title: "Loom",                  desc: "Threads find their weave." },
   { id: "fathom",       title: "Fathom",                desc: "Depth as calibration." },
@@ -509,21 +512,31 @@ function mulberry32(seed) {
 
 // =====================================================================
 // VISIBILITY MODEL
-// At zoom z, we show visibleCount(z) nodes by rank.
-// Baseline at z=0.6 -> 6 nodes. At z=4.0 -> all nodes.
-// Radius also grows with z so the sphere "expands" into the view.
+// At zoom z, we reveal more nodes by rank while keeping the sphere radius fixed.
+// This makes wheel/pinch feel like diving deeper into a tunnel of nodes rather than
+// inflating the cards toward the camera.
 // =====================================================================
 function visibleCountForZoom(z) {
   const t = (z - 0.6) / (4.0 - 0.6);
   const clamped = Math.max(0, Math.min(1, t));
-  // Ease out for faster early reveal
-  const eased = 1 - Math.pow(1 - clamped, 1.4);
-  const min = 6;
+  const eased = clamped * clamped * (3 - 2 * clamped);
+  const min = 5;
   return Math.max(min, Math.min(state.nodes.length, Math.round(min + eased * (state.nodes.length - min))));
 }
 function radiusForZoom(z) {
-  // Scales the sphere outward as zoom grows. Base keeps nodes clustered near center.
-  return 220 + z * 220;
+  return Math.min(innerWidth, innerHeight) * 0.3;
+}
+
+function revealAlpha(rank, visN) {
+  if (rank < visN - 1) return 1;
+  const edge = visN - 1;
+  const fade = 1 - Math.max(0, rank - edge);
+  return Math.max(0, Math.min(1, fade));
+}
+
+function compensatePerspectiveScale(wz) {
+  const scale = (PERSPECTIVE - wz) / PERSPECTIVE;
+  return Math.max(0.72, Math.min(1.35, scale));
 }
 
 // =====================================================================
@@ -559,6 +572,7 @@ function renderFrame() {
   const sinY = Math.sin(state.rotY), cosY = Math.cos(state.rotY);
   const R = radiusForZoom(state.zoom);
   const visN = visibleCountForZoom(state.zoom);
+  const depthShift = (state.zoom - 0.6) / (4.0 - 0.6);
   let actuallyVisible = 0;
 
   // The sphere container lives at (0,0,0); per-node transform carries position.
@@ -581,15 +595,17 @@ function renderFrame() {
 
     const wx = x2 * R;
     const wy = y1 * R;
-    const wz = z2 * R;
+    const wz = z2 * R - depthShift * R * 0.45;
 
     // Opacity fades back side. z > 0 is toward viewer (CSS convention).
     const frontness = (z2 + 1) / 2; // 0..1
-    const op = Math.max(0.18, Math.min(1, 0.35 + frontness * 0.85));
+    const reveal = revealAlpha(n.rank, visN);
+    const op = Math.max(0.16, Math.min(1, (0.28 + frontness * 0.9) * reveal));
+    const scale = compensatePerspectiveScale(wz);
     n.el.style.opacity = op.toFixed(3);
-    n.el.style.pointerEvents = frontness > 0.25 ? "auto" : "none";
+    n.el.style.pointerEvents = frontness > 0.25 && reveal > 0.45 ? "auto" : "none";
     n.el.style.zIndex = String(1000 + Math.round(wz));
-    n.el.style.transform = `translate3d(${wx}px, ${wy}px, ${wz}px) translate(-50%, -50%)`;
+    n.el.style.transform = `translate3d(${wx}px, ${wy}px, ${wz}px) translate(-50%, -50%) scale(${scale})`;
     actuallyVisible++;
   }
 

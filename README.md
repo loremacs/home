@@ -11,16 +11,17 @@ nodes drift toward the front over time (persisted in `localStorage`).
 ```
 /
 ├── index.html              # atlas (the rotating cosmic hub)
-├── playground/             # Playwright record/replay playground
-│   ├── index.html
-│   └── fixtures/           # same-origin pages that can be recorded
-│       ├── login.html
-│       ├── todo.html
-│       └── form.html
-├── emergent-lab/           # editable agent-swarm with self-healing runtime
-│   └── index.html
-└── triptych/               # Triptych of Passage — top-down game POC
-    └── index.html
+└── projects/
+    ├── playwright/         # Playwright record/replay playground
+    │   ├── index.html
+    │   └── fixtures/       # same-origin pages that can be recorded
+    │       ├── login.html
+    │       ├── todo.html
+    │       └── form.html
+    ├── emergent-lab/       # editable agent-swarm with self-healing runtime
+    │   └── index.html
+    └── triptych/           # Triptych of Passage — top-down game POC
+        └── index.html
 ```
 
 Everything is plain HTML + CSS + JS. No build step. No dependencies.
@@ -38,7 +39,7 @@ Then visit `http://localhost:5173/`.
 
 ## Adding a new page
 
-1. Create a folder at the repo root, e.g. `prism-field/`, with an
+1. Create a folder in `projects/`, e.g. `projects/prism-field/`, with an
    `index.html` inside. Anything referenced with a relative path from
    that folder will work.
 2. In `index.html` (the atlas at the repo root), open the `CATALOG`
@@ -53,7 +54,7 @@ Example entry:
   id: "prism",
   title: "Prism Field",
   desc: "Signals get sorted.",
-  href: "prism-field/"
+  href: "projects/prism-field/"
 }
 ```
 
@@ -61,7 +62,7 @@ That's it. The sphere picks up the new node automatically.
 
 ## Removing a page
 
-Delete the folder and remove (or blank the `href` on) its catalog entry.
+Delete the folder in `projects/` and remove (or blank the `href` on) its catalog entry.
 Placeholder-only entries still show on the sphere and flash a "coming
 soon" toast when clicked — useful for teasing future work.
 

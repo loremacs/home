@@ -12,9 +12,9 @@ Last updated: 2026-04-21.
 
 A static personal site for **@loremacs**. The landing page (`index.html`
 at the repo root) is an interactive 3D sphere of "nodes". Each node is
-a link into a sub-page experiment. New experiments are added as folders
-at the repo root plus one entry in the catalog array on the landing
-page. No build step, no framework, no dependencies — every file is a
+a link into a sub-page experiment. New experiments are added under
+`projects/` plus one entry in the catalog array on the landing page.
+No build step, no framework, no dependencies — every file is a
 self-contained HTML document.
 
 Git remote: `https://github.com/loremacs/home` on branch `main`.
@@ -35,16 +35,17 @@ key to the `loremacs` account or use a host-alias in `~/.ssh/config`.
 ├── README.md                    user-facing docs
 ├── AGENTS.md                    this file
 ├── .gitignore
-├── playground/
-│   ├── index.html               Playwright record/replay tool
-│   └── fixtures/                same-origin pages the tool can record
-│       ├── login.html
-│       ├── todo.html
-│       └── form.html
-├── emergent-lab/
-│   └── index.html               editable agent swarm + self-healing runtime
-└── triptych/
-    └── index.html               top-down SNES-scale game POC (40KB, self-contained)
+└── projects/
+    ├── playwright/
+    │   ├── index.html           Playwright record/replay tool
+    │   └── fixtures/            same-origin pages the tool can record
+    │       ├── login.html
+    │       ├── todo.html
+    │       └── form.html
+    ├── emergent-lab/
+    │   └── index.html           editable agent swarm + self-healing runtime
+    └── triptych/
+        └── index.html           top-down game POC (40KB, self-contained)
 ```
 
 ---
@@ -66,10 +67,10 @@ Key design decisions (do not "simplify" these without reason):
   container is *not* CSS-rotated; each node's transform already
   includes the rotation. See `renderFrame()` around line 440.
 
-- **Nodes do not resize with zoom.** Zoom scales the sphere *radius*,
-  so more nodes come into view as the sphere grows pixel-wise. Node
-  pixel size stays constant. `radiusForZoom()` and
-  `visibleCountForZoom()` encode this.
+- **Nodes should read as a fixed-size field.** Scroll/pinch reveals more
+  nodes by rank and shifts depth so it feels like diving deeper into a
+  spherical tunnel. Node cards stay near a standard readable size while
+  rotation simply exposes the back side better.
 
 - **Rank gates visibility, not existence.** At low zoom, only top-rank
   nodes render; at high zoom, all of them. Rank is recomputed from
@@ -105,7 +106,7 @@ Key design decisions (do not "simplify" these without reason):
 - **Hint overlay on first visit.** Dismissed permanently via
   `localStorage` key `loremacs.atlas.hintSeen.v1`.
 
-### 3.2 Playwright Playground — `playground/`
+### 3.2 Playwright Playground — `projects/playwright/`
 
 Codegen-in-the-browser. Left pane is an iframe; right pane is a
 textarea editor that streams generated Playwright code as the user
@@ -123,7 +124,7 @@ and flips between two modes:
 - cross-origin → "view-only" orange badge; overlay card explains the
   constraint; Record button refuses to activate.
 
-Three same-origin fixtures live in `playground/fixtures/` and cover
+Three same-origin fixtures live in `projects/playwright/fixtures/` and cover
 the main Playwright primitives (`fill`, `check/uncheck`, `selectOption`,
 `press`, click-by-role, click-by-testid). Every form element has a
 `data-testid` so generated locators are stable.
@@ -144,7 +145,7 @@ recordings are discarded — this is known and acceptable given scope.
 Keyboard shortcuts: `Ctrl+Shift+R` toggle record, `Ctrl+Shift+P`
 replay, `Ctrl+Shift+L` clear, `Ctrl+Shift+C` copy.
 
-### 3.3 Emergent Logic Lab — `emergent-lab/`
+### 3.3 Emergent Logic Lab — `projects/emergent-lab/`
 
 An agent-swarm (boids-style) where the user edits a JavaScript object
 describing the `rule(agent, neighbors, state)` and optional `mutate()`
@@ -162,7 +163,7 @@ functions. On Apply, we:
 This is a demo of "self-testing, self-healing" more than a serious
 tool. Don't over-engineer it.
 
-### 3.4 Triptych of Passage — `triptych/`
+### 3.4 Triptych of Passage — `projects/triptych/`
 
 A top-down tile-based POC I preserved from an earlier project. It is
 ~40KB of self-contained HTML with no external assets. The "three
@@ -182,14 +183,14 @@ Palimpsest, etc.) so the sphere has enough mass to feel like a real
 constellation.
 
 **To add a page:**
-1. Create a folder at the repo root with an `index.html` inside.
+1. Create a folder under `projects/` with an `index.html` inside.
 2. Edit the `CATALOG` array — either convert an existing placeholder
    (give it an `href`) or add a new entry at the end.
 3. Optionally add a custom SVG thumbnail by extending `makeThumb()`
    with a new `if (n.id === "...")` branch. Placeholders get auto-
    generated line-art glyphs seeded by their id, so this is optional.
 
-**To remove a page:** delete the folder and either remove the entry
+**To remove a page:** delete the folder from `projects/` and either remove the entry
 or strip its `href` (turning it back into a placeholder).
 
 ---
