@@ -300,20 +300,23 @@
 const PROJECTS_BASE = "projects/";
 const PERSPECTIVE = 1400;
 
-// Concentric shells. Outermost first. Default view (zoom=0) shows only the
-// primary (outer) shell; deeper shells fade in as you scroll in.
+// Concentric shells. Each holds a fixed number of nodes; outermost first.
+// Only a 3-shell window renders at any time: the outgoing shell, the focus,
+// and the incoming shell. Outgoing + incoming are barely visible so the
+// focus shell reads cleanly.
 const SHELL_DEFS = [
-  { radius: 520, capacity: 6  },
-  { radius: 380, capacity: 12 },
-  { radius: 240, capacity: 12 },
-  { radius: 110, capacity: 12 },
+  { capacity: 6  },
+  { capacity: 12 },
+  { capacity: 12 },
+  { capacity: 12 },
 ];
+const SHELL_COUNT = SHELL_DEFS.length;
 const TOTAL_CAPACITY = SHELL_DEFS.reduce((s, d) => s + d.capacity, 0);
 
-// Camera travels from outside the outermost shell through past the innermost
-// as state.zoom moves 0 -> 1. Smooth, no snapping.
-const CAM_Z_FAR  = 700;
-const CAM_Z_NEAR = -500;
+// Each shell step is this much larger (outgoing) or smaller (incoming) than
+// the focus shell's on-screen radius. Controls the 'next sphere is inside'
+// feel without ever changing node pixel size.
+const SHELL_SCALE_STEP = 1.75;
 
 const CATALOG = [
   { id: "playwright",   title: "Playwright Playground", desc: "Record a flow in an iframe, replay it, export .spec.ts.", href: PROJECTS_BASE + "playwright/" },
@@ -434,8 +437,8 @@ function fibonacciSphere(n, rot) {
 }
 
 // Partition the ranked list across shells. Top-ranked land on the outer shell
-// (always visible at the default zoom); lower-ranked land on inner shells that
-// reveal as you dive in.
+// (visible at the default zoom); lower-ranked land on inner shells that come
+// into focus as you dive in.
 function assignShells(ranked) {
   const shells = [];
   let cursor = 0;
@@ -447,7 +450,6 @@ function assignShells(ranked) {
     const items = slice.map((n, i) => ({
       ...n,
       shellIndex: s,
-      shellRadius: def.radius,
       unit: positions[i],
     }));
     shells.push({ def, items });
@@ -591,27 +593,37 @@ function mulberry32(seed) {
 }
 
 // =====================================================================
-// ZOOM + SHELL REVEAL
-// zoom in [0,1] drives camera depth. Each shell has its own fade-in window
-// so the outer shell stays visible by default and inner shells emerge as the
-// user dives in, without snapping.
+// ZOOM + SHELL FOCUS
+// zoom in [0,1] maps to a continuous focus index across the shells. At any
+// moment at most three shells are visible: the one just passed (outer,
+// barely visible), the focus shell (primary), and the one coming up (inner,
+// barely visible). Node pixel size never changes -- only the sphere's
+// on-screen radius and per-shell opacity do.
 // =====================================================================
 function smoothstep(a, b, x) {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 }
-function camZForZoom(z) {
+function focusForZoom(z) {
   const t = Math.max(0, Math.min(1, z));
-  const eased = t * t * (3 - 2 * t);
-  return CAM_Z_FAR + (CAM_Z_NEAR - CAM_Z_FAR) * eased;
+  return t * (SHELL_COUNT - 1);
 }
-// Per-shell visibility gate. Outer shell always visible; inner shells fade
-// in as you zoom past their thresholds.
-function shellGate(shellIdx, z) {
-  if (shellIdx === 0) return 1;
-  const start = 0.08 + (shellIdx - 1) * 0.22;
-  const end   = start + 0.22;
-  return smoothstep(start, end, z);
+function focusRadiusPx() {
+  return Math.min(innerWidth, innerHeight) * 0.32;
+}
+// Distance = focus - shellIndex.
+// Positive = shell is 'behind us' (outgoing, larger on screen, fading out).
+// Negative = shell is 'ahead of us' (incoming, smaller on screen, fading in).
+function shellRenderRadius(distance) {
+  return focusRadiusPx() * Math.pow(SHELL_SCALE_STEP, distance);
+}
+// Opacity peaks at distance 0 (focus) and drops off quickly so neighbouring
+// shells are only barely visible and anything further is hidden.
+function shellOpacity(distance) {
+  const d = Math.abs(distance);
+  if (d >= 1.3) return 0;
+  if (d <= 1) return 1 - 0.85 * d * d * (3 - 2 * d);
+  return 0.15 * (1 - (d - 1) / 0.3);
 }
 
 // =====================================================================
@@ -639,15 +651,24 @@ function renderFrame() {
 
   const sinX = Math.sin(state.rotX), cosX = Math.cos(state.rotX);
   const sinY = Math.sin(state.rotY), cosY = Math.cos(state.rotY);
-  const camZ = camZForZoom(state.zoom);
+  const focus = focusForZoom(state.zoom);
   let actuallyVisible = 0;
 
   for (let i = 0; i < state.nodes.length; i++) {
     const n = state.nodes[i];
+    const distance = focus - n.shellIndex;
+    const shellOp = shellOpacity(distance);
+    if (shellOp < 0.02) {
+      if (n.el.style.opacity !== "0") {
+        n.el.style.opacity = "0";
+        n.el.style.pointerEvents = "none";
+      }
+      continue;
+    }
+    const R = shellRenderRadius(distance);
     const p = n.unit;
-    const R = n.shellRadius;
 
-    // Rotate unit position.
+    // Rotate unit position (orthographic: no perspective).
     const y1 = p.y * cosX - p.z * sinX;
     const z1 = p.y * sinX + p.z * cosX;
     const x2 = p.x * cosY + z1 * sinY;
@@ -655,129 +676,99 @@ function renderFrame() {
 
     const wx = x2 * R;
     const wy = y1 * R;
-    const wz = z2 * R - camZ;
 
-    // Hide when close to / past the camera plane or receded too far.
-    let op = 1;
-    if (wz > 900)       op = Math.max(0, 1 - (wz - 900) / 350);
-    else if (wz < -1700) op = Math.max(0, 1 - (-wz - 1700) / 500);
-
-    // Back-side fade so peripheral nodes don't overpower the front focus.
+    // Back-side fade so peripheral/behind nodes don't crowd the front focus.
     const frontness = (z2 + 1) / 2;
-    op *= 0.35 + frontness * 0.65;
-
-    // Gate inner shells by zoom so the default view is 6 primary nodes.
-    op *= shellGate(n.shellIndex, state.zoom);
-
-    if (op < 0.02) {
-      if (n.el.style.opacity !== "0") {
-        n.el.style.opacity = "0";
-        n.el.style.pointerEvents = "none";
-      }
-      continue;
-    }
+    const op = shellOp * (0.4 + frontness * 0.6);
 
     n.el.style.opacity = op.toFixed(3);
-    n.el.style.pointerEvents = op > 0.45 ? "auto" : "none";
-    n.el.style.zIndex = String(1000 + Math.round(wz));
-    n.el.style.transform = `translate3d(${wx}px, ${wy}px, ${wz}px) translate(-50%, -50%)`;
+    n.el.style.pointerEvents = (shellOp > 0.5 && frontness > 0.25) ? "auto" : "none";
+    // Focus shell stacks above neighbours; within a shell, front above back.
+    const shellLayer = (n.shellIndex === Math.round(focus)) ? 2000 : 1000;
+    n.el.style.zIndex = String(shellLayer + Math.round(z2 * 100));
+    // translate3d(...,0) keeps the card out of the CSS perspective pipeline
+    // so its pixel size does not change with zoom.
+    n.el.style.transform = `translate3d(${wx}px, ${wy}px, 0) translate(-50%, -50%)`;
     actuallyVisible++;
   }
 
   document.getElementById("visCount").textContent = actuallyVisible;
   document.getElementById("zoomChip").textContent = state.zoom.toFixed(2);
 
-  drawGrid(camZ, sinX, cosX, sinY, cosY);
+  drawGrid(sinX, cosX, sinY, cosY, focus);
   drawSky();
   requestAnimationFrame(renderFrame);
 }
 
 // =====================================================================
 // WIREFRAME GRID
-// Subtle lat/long lines per shell so the 3D sphere shape is readable
-// without overpowering the nodes. Uses the same rotation + camera math so
-// it aligns with the node field exactly.
+// Orthographic lat/long wireframes per shell. Each shell's opacity and
+// on-screen radius match its nodes, so the grid is the visible skeleton of
+// the current focus sphere (and the two ghosts neighbouring it).
+// Back-hemisphere segments draw dimmer so the sphere reads as 3D.
 // =====================================================================
-function projectPoint(x, y, z, camZ, sinX, cosX, sinY, cosY, cx, cy) {
+function rotate3(x, y, z, sinX, cosX, sinY, cosY) {
   const y1 = y * cosX - z * sinX;
   const z1 = y * sinX + z * cosX;
   const x2 = x * cosY + z1 * sinY;
   const z2 = -x * sinY + z1 * cosY;
-  const wz = z2 - camZ;
-  if (wz >= PERSPECTIVE - 20) return null;
-  const scale = PERSPECTIVE / (PERSPECTIVE - wz);
-  return { x: cx + x2 * scale, y: cy + y1 * scale, wz };
+  return { x: x2, y: y1, z: z2 };
 }
 
-function drawGrid(camZ, sinX, cosX, sinY, cosY) {
+function drawGrid(sinX, cosX, sinY, cosY, focus) {
   const W = grid.width, H = grid.height;
   gridCtx.clearRect(0, 0, W, H);
   const cx = W / 2, cy = H / 2;
+  gridCtx.lineWidth = 1;
 
-  for (let si = 0; si < state.shells.length; si++) {
-    const shell = state.shells[si];
-    const R = shell.def.radius;
-    const gate = shellGate(si, state.zoom);
+  for (let si = 0; si < SHELL_COUNT; si++) {
+    const dist = focus - si;
+    const gate = shellOpacity(dist);
     if (gate < 0.05) continue;
+    const R = shellRenderRadius(dist);
+    const baseAlpha = 0.22 * gate;
 
-    // Fade slightly once the camera has moved past the shell's back face.
-    let passed = 1;
-    if (camZ < -R) passed = Math.max(0, 1 - (-camZ - R) / 400);
-    const alpha = 0.10 * gate * passed;
-    if (alpha < 0.005) continue;
-    gridCtx.strokeStyle = "rgba(140, 200, 255, " + alpha.toFixed(3) + ")";
-    gridCtx.lineWidth = 1;
+    const drawArc = (sampleFn, STEPS) => {
+      let prev = null;
+      for (let s = 0; s <= STEPS; s++) {
+        const u = sampleFn(s / STEPS);
+        const p = rotate3(u.x * R, u.y * R, u.z * R, sinX, cosX, sinY, cosY);
+        const cur = { x: cx + p.x, y: cy + p.y, z: p.z };
+        if (prev) {
+          const midFront = (prev.z + cur.z) / 2 > 0;
+          const a = baseAlpha * (midFront ? 1 : 0.28);
+          gridCtx.strokeStyle = "rgba(140, 200, 255, " + a.toFixed(3) + ")";
+          gridCtx.beginPath();
+          gridCtx.moveTo(prev.x, prev.y);
+          gridCtx.lineTo(cur.x, cur.y);
+          gridCtx.stroke();
+        }
+        prev = cur;
+      }
+    };
 
-    // Latitudes
-    const LAT_DIV = 6;
-    const LON_STEPS = 48;
+    // Latitudes (parallels)
+    const LAT_DIV = 6, LON_STEPS = 48;
     for (let li = 1; li < LAT_DIV; li++) {
       const lat = -Math.PI / 2 + (li / LAT_DIV) * Math.PI;
       const y0 = Math.sin(lat);
       const r0 = Math.cos(lat);
-      gridCtx.beginPath();
-      let prev = null;
-      for (let s = 0; s <= LON_STEPS; s++) {
-        const lon = (s / LON_STEPS) * Math.PI * 2;
-        const pt = projectPoint(
-          Math.cos(lon) * r0 * R, y0 * R, Math.sin(lon) * r0 * R,
-          camZ, sinX, cosX, sinY, cosY, cx, cy
-        );
-        if (pt) {
-          if (prev) gridCtx.lineTo(pt.x, pt.y);
-          else gridCtx.moveTo(pt.x, pt.y);
-          prev = pt;
-        } else {
-          prev = null;
-        }
-      }
-      gridCtx.stroke();
+      drawArc((t) => {
+        const lon = t * Math.PI * 2;
+        return { x: Math.cos(lon) * r0, y: y0, z: Math.sin(lon) * r0 };
+      }, LON_STEPS);
     }
 
-    // Longitudes
-    const LON_DIV = 8;
-    const LAT_STEPS = 36;
+    // Longitudes (meridians)
+    const LON_DIV = 8, LAT_STEPS = 36;
     for (let li = 0; li < LON_DIV; li++) {
       const lon = (li / LON_DIV) * Math.PI * 2;
-      gridCtx.beginPath();
-      let prev = null;
-      for (let s = 0; s <= LAT_STEPS; s++) {
-        const lat = -Math.PI / 2 + (s / LAT_STEPS) * Math.PI;
+      drawArc((t) => {
+        const lat = -Math.PI / 2 + t * Math.PI;
         const y0 = Math.sin(lat);
         const r0 = Math.cos(lat);
-        const pt = projectPoint(
-          Math.cos(lon) * r0 * R, y0 * R, Math.sin(lon) * r0 * R,
-          camZ, sinX, cosX, sinY, cosY, cx, cy
-        );
-        if (pt) {
-          if (prev) gridCtx.lineTo(pt.x, pt.y);
-          else gridCtx.moveTo(pt.x, pt.y);
-          prev = pt;
-        } else {
-          prev = null;
-        }
-      }
-      gridCtx.stroke();
+        return { x: Math.cos(lon) * r0, y: y0, z: Math.sin(lon) * r0 };
+      }, LAT_STEPS);
     }
   }
 }
