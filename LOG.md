@@ -11,7 +11,8 @@ This is a creative log, not a version changelog.
 A real-time "apocalypse console" that scrapes news about layoffs and job cuts
 alongside tech hiring opportunities. Built with a 5-minute polled timer,
 it aggregates data from GDELT, Hacker News, and RemoteOK. The UI features
-a custom "fire" aesthetic inspired by the iconic meme.
+a custom "fire" aesthetic inspired by the iconic meme, and a visible "System Logs"
+panel to trace the API fetching events in real-time.
 
 ### Gemini3Flash: Prism Break
 A light-refracting neon arcade experience. Features glassmorphic UI, neon visuals,

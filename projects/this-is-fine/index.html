@@ -9,74 +9,74 @@
             --fire-orange: #ff4d00;
             --fire-yellow: #ffcc00;
             --fire-red: #cc0000;
-            --bg-dark: #0f0500;
-            --card-bg: rgba(30, 10, 0, 0.7);
-            --glass-border: rgba(255, 100, 0, 0.2);
+            --bg-dark: #0d0400;
+            --card-bg: rgba(28, 8, 0, 0.75);
+            --glass-border: rgba(255, 100, 0, 0.18);
             --text-main: #fff5f0;
             --text-dim: #b3a099;
+            --accent-blue: #5dd6ff;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        a { color: inherit; text-decoration: none; }
 
         body {
-            background-color: var(--bg-dark);
+            background: var(--bg-dark);
             color: var(--text-main);
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: system-ui, -apple-system, 'Inter', sans-serif;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow-x: hidden;
-            background: radial-gradient(circle at center, #2e0f00 0%, #0f0500 100%);
         }
 
-        /* Animated Flame Background */
-        .flame-container {
-            position: fixed;
-            bottom: -50px;
-            left: 0;
-            width: 100%;
-            height: 200px;
-            pointer-events: none;
-            z-index: -1;
-            opacity: 0.3;
-            filter: blur(20px);
-        }
-
+        /* ===================== HEADER + FIRE ===================== */
         header {
-            padding: 40px 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--glass-border);
-            background: rgba(15, 5, 0, 0.8);
-            backdrop-filter: blur(10px);
             position: sticky;
             top: 0;
-            z-index: 10;
+            z-index: 20;
+            text-align: center;
+            padding: 28px 20px 22px;
+            border-bottom: 1px solid var(--glass-border);
+            background: rgba(10, 3, 0, 0.92);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        #fire-canvas {
+            position: absolute;
+            bottom: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            opacity: 0.45;
         }
 
         h1 {
-            font-size: clamp(2rem, 8vw, 4rem);
+            position: relative;
+            font-size: clamp(2rem, 7vw, 3.8rem);
             font-weight: 900;
-            letter-spacing: -2px;
+            letter-spacing: -1px;
             text-transform: uppercase;
-            background: linear-gradient(to bottom, #fff, var(--fire-orange), var(--fire-red));
+            background: linear-gradient(to bottom, #fff 0%, #ffe08a 40%, var(--fire-orange) 80%, var(--fire-red) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 20px rgba(255, 77, 0, 0.4));
-            margin-bottom: 10px;
-            animation: flicker 4s infinite;
+            filter: drop-shadow(0 0 24px rgba(255, 100, 0, 0.55));
+            margin-bottom: 8px;
+            animation: flicker 3.5s ease-in-out infinite;
         }
 
         @keyframes flicker {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.9; transform: scale(0.99); }
+            0%, 100% { filter: drop-shadow(0 0 24px rgba(255, 100, 0, 0.55)); }
+            35% { filter: drop-shadow(0 0 36px rgba(255, 180, 0, 0.7)) brightness(1.05); }
+            70% { filter: drop-shadow(0 0 18px rgba(255, 60, 0, 0.4)); }
         }
 
-        .timer-container {
+        .timer-bar {
+            position: relative;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
+            font-size: 11px;
             color: var(--fire-yellow);
             letter-spacing: 2px;
-            opacity: 0.8;
+            opacity: 0.85;
         }
 
         .refresh-now {
@@ -86,39 +86,64 @@
         }
         .refresh-now:hover { color: #fff; }
 
+        /* ===================== LAYOUT ===================== */
+        /* ===================== LOG BAR ===================== */
+        .log-bar-wrap {
+            background: rgba(0, 0, 0, 0.45);
+            border-bottom: 1px solid rgba(255, 100, 0, 0.1);
+            flex-shrink: 0;
+        }
+        .log-bar-inner {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 6px 40px;
+            height: 72px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #6a7d8f;
+        }
+        .log-bar-inner { scrollbar-width: none; -ms-overflow-style: none; }
+        .log-bar-inner::-webkit-scrollbar { display: none; }
+
         .dashboard {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            grid-template-columns: 1fr 1fr;
             gap: 24px;
-            padding: 40px;
-            max-width: 1400px;
+            padding: 28px 40px 32px;
+            max-width: 1500px;
             margin: 0 auto;
             width: 100%;
+            flex-grow: 1;
         }
 
         .panel {
             background: var(--card-bg);
             border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 30px;
+            border-radius: 20px;
+            padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            gap: 16px;
+            backdrop-filter: blur(14px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
             max-height: 80vh;
         }
 
         .panel-header {
             display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--glass-border);
-            padding-bottom: 15px;
+            padding-bottom: 14px;
+            flex-shrink: 0;
         }
 
         .panel-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
@@ -126,268 +151,1034 @@
         }
 
         .badge {
-            font-size: 10px;
+            font-size: 9px;
             background: var(--fire-red);
-            padding: 4px 8px;
+            padding: 3px 7px;
             border-radius: 4px;
             font-weight: 800;
+            letter-spacing: 0.5px;
         }
 
+        /* ===================== FILTERS ===================== */
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .filter-select, .filter-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,100,0,0.25);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 11px;
+            padding: 6px 10px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .filter-select:focus, .filter-input:focus {
+            border-color: var(--fire-orange);
+        }
+        .filter-input { flex: 1; min-width: 120px; }
+        .filter-select option { background: #1a0800; }
+
+        .filter-btn {
+            background: rgba(255, 77, 0, 0.2);
+            border: 1px solid rgba(255, 77, 0, 0.4);
+            border-radius: 8px;
+            color: var(--fire-orange);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 6px 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .filter-btn:hover { background: rgba(255,77,0,0.4); color: #fff; }
+
+        /* ===================== FEED LIST ===================== */
         .feed-list {
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            padding-right: 10px;
+            gap: 10px;
+            padding-right: 6px;
+            flex-grow: 1;
         }
 
-        .feed-list::-webkit-scrollbar { width: 4px; }
-        .feed-list::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 10px; }
+        .feed-list::-webkit-scrollbar { width: 3px; }
+        .feed-list::-webkit-scrollbar-thumb { background: rgba(255,100,0,0.3); border-radius: 10px; }
 
+        /* log entries — shared by .log-bar */
+        .log-entry { line-height: 1.6; padding: 2px 0; display: block; }
+
+        /* ===================== CARDS ===================== */
         .item-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
-            padding: 16px;
+            padding: 14px 16px;
             text-decoration: none;
-            color: inherit;
-            transition: all 0.2s ease;
+            color: var(--text-main);
+            transition: all 0.18s ease;
             position: relative;
+            overflow: hidden;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            min-height: 72px;
+        }
+
+        a.item-card, a.item-card:visited { color: var(--text-main); }
+
+        .item-card:hover {
+            background: rgba(255, 80, 0, 0.08);
+            border-color: rgba(255, 100, 0, 0.45);
+            transform: translateX(3px);
+        }
+
+        .item-card::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 0;
+            width: 3px; height: 100%;
+            background: linear-gradient(to bottom, var(--fire-yellow), var(--fire-orange));
+            opacity: 0;
+            transition: opacity 0.2s;
+            border-radius: 3px 0 0 3px;
+        }
+        .item-card:hover::before { opacity: 1; }
+
+        /* Left gutter: source label + date stacked */
+        .card-left {
+            flex-shrink: 0;
+            width: 72px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            padding-top: 2px;
+        }
+
+        .card-source {
+            font-size: 8.5px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--fire-orange);
+            font-weight: 700;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .card-date {
+            font-size: 9px;
+            color: var(--text-dim);
+            white-space: nowrap;
+        }
+
+        /* Right body: title + desc + pay + tags */
+        .card-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.4;
+            margin-bottom: 5px;
+            color: #ffffff;
+            white-space: normal;
+        }
+
+        .card-company {
+            font-size: 10px;
+            color: #9eb0c0;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .card-desc {
+            font-size: 11px;
+            color: #b0bec8;
+            line-height: 1.5;
+            margin-bottom: 7px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
             overflow: hidden;
         }
 
-        .item-card:hover {
-            background: rgba(255, 100, 0, 0.08);
-            border-color: var(--fire-orange);
-            transform: translateX(5px);
-        }
-
-        .item-card .source {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--fire-orange);
-            margin-bottom: 6px;
-            display: block;
-        }
-
-        .item-card .title {
-            font-size: 14px;
-            font-weight: 600;
-            line-height: 1.4;
-            margin-bottom: 8px;
-            display: block;
-        }
-
-        .item-card .meta {
+        .card-pay {
             font-size: 11px;
-            color: var(--text-dim);
-            display: flex;
-            justify-content: space-between;
+            font-weight: 700;
+            color: var(--accent-blue);
+            margin-bottom: 5px;
+            letter-spacing: 0.3px;
         }
+
+        .card-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .card-tag {
+            font-size: 9px;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .tag-type { background: rgba(255, 204, 0, 0.12); color: var(--fire-yellow); }
 
         .loading {
             text-align: center;
-            padding: 40px;
+            padding: 40px 20px;
             color: var(--text-dim);
             font-style: italic;
+            font-size: 13px;
         }
 
-        /* Fire effect in cards */
-        .item-card::after {
-            content: "";
-            position: absolute;
-            top: 0; right: 0;
-            width: 2px; height: 100%;
-            background: linear-gradient(to bottom, var(--fire-yellow), var(--fire-red));
-            opacity: 0.3;
-        }
+        .log-entry .t { color: var(--fire-yellow); margin-right: 6px; }
+        .log-entry.error { color: #ff5577; }
+        .log-entry.ok { color: #5dd6ff; }
+        .log-entry.warn { color: #ffaa00; }
 
-        @media (max-width: 600px) {
-            .dashboard { padding: 20px; grid-template-columns: 1fr; }
+        /* ===================== RESPONSIVE ===================== */
+        @media (max-width: 900px) {
+            .dashboard { grid-template-columns: 1fr; padding: 20px; }
             .panel { max-height: none; }
+            .log-bar-inner { height: 56px; padding: 4px 20px; }
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>THIS IS FINE</h1>
-        <div class="timer-container">
-            NEXT SCAN IN <span id="timer">05:00</span> // <span class="refresh-now" onclick="refreshAll()">SCAN NOW</span>
-        </div>
-    </header>
+<header>
+    <canvas id="fire-canvas"></canvas>
+    <h1>THIS IS FINE</h1>
+    <div class="timer-bar">
+        LAST SCAN: <span id="timer">—</span> &nbsp;// &nbsp;<span class="refresh-now" onclick="refreshAll()">SCAN NOW</span>
+    </div>
+</header>
+<div class="log-bar-wrap"><div class="log-bar-inner" id="debug-log"></div></div>
 
-    <div class="dashboard">
-        <!-- LAYOFFS NEWS PANEL -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">THE CUTS</div>
-                <div class="badge">LIVE NEWS</div>
-            </div>
-            <div id="layoffs-list" class="feed-list">
-                <div class="loading">Sensing the flames...</div>
-            </div>
-        </div>
+<div class="dashboard">
 
-        <!-- JOB LISTINGS PANEL -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">THE OPPORTUNITIES</div>
-                <div class="badge">OPEN POSITIONS</div>
-            </div>
-            <div id="jobs-list" class="feed-list">
-                <div class="loading">Searching the debris...</div>
-            </div>
+    <!-- LAYOFFS PANEL -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">🔥 THE CUTS</div>
+        </div>
+        <div class="filters">
+            <input id="cuts-keyword" class="filter-input" type="text" placeholder="Search headline..." oninput="applyLayoffFilters()">
+            <select id="cuts-country" class="filter-select" onchange="applyLayoffFilters()">
+                <option value="">All Regions</option>
+                <option value="us" selected>United States</option>
+                <option value="uk">United Kingdom</option>
+                <option value="eu">Europe</option>
+                <option value="global">Global / Tech</option>
+            </select>
+            <select id="cuts-lang" class="filter-select" onchange="applyLayoffFilters()">
+                <option value="">Any Language</option>
+                <option value="en" selected>English</option>
+                <option value="de">German</option>
+                <option value="fr">French</option>
+            </select>
+            <button class="filter-btn" onclick="resetLayoffFilters()">RESET</button>
+        </div>
+        <div id="cuts-count" style="font-size:10px;color:var(--text-dim);flex-shrink:0;"></div>
+        <div id="layoffs-list" class="feed-list">
+            <div class="loading">Sensing the flames...</div>
         </div>
     </div>
 
-    <div class="flame-container">
-        <!-- SVG Flames could go here -->
+    <!-- JOBS PANEL -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">💼 OPPORTUNITIES</div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <input id="filter-keyword" class="filter-input" type="text" placeholder="Search title or company..." oninput="applyFilters()">
+            <select id="filter-category" class="filter-select" onchange="applyFilters()">
+                <option value="">All Categories</option>
+                <option value="software dev">Engineering / Dev</option>
+                <option value="devops">DevOps / Infra</option>
+                <option value="qa">QA / Testing</option>
+                <option value="security">Security / InfoSec</option>
+                <option value="design">Design / UX</option>
+                <option value="product">Product</option>
+                <option value="data">Data / Analytics</option>
+                <option value="writing">Writing / Content</option>
+                <option value="marketing">Marketing / Growth</option>
+                <option value="finance">Finance / Legal</option>
+                <option value="customer">Support / Success</option>
+                <option value="sales">Sales / BD</option>
+                <option value="operations">Operations / Admin</option>
+                <option value="management">Management / HR</option>
+            </select>
+            <select id="filter-type" class="filter-select" onchange="applyFilters()">
+                <option value="">All Types</option>
+                <option value="full_time">Full-Time</option>
+                <option value="part_time">Part-Time</option>
+                <option value="contract">Contract</option>
+            </select>
+            <select id="filter-pay" class="filter-select" onchange="applyFilters()">
+                <option value="">Any Pay</option>
+                <option value="50">$50k+</option>
+                <option value="80">$80k+</option>
+                <option value="100">$100k+</option>
+                <option value="150">$150k+</option>
+            </select>
+            <select id="filter-country" class="filter-select" onchange="applyFilters()">
+                <option value="">All Regions</option>
+                <option value="remote">Remote / Worldwide</option>
+                <option value="us" selected>United States</option>
+                <option value="uk">United Kingdom</option>
+                <option value="eu">Europe</option>
+                <option value="de">Germany</option>
+                <option value="ca">Canada</option>
+            </select>
+            <select id="filter-lang" class="filter-select" onchange="applyFilters()">
+                <option value="">Any Language</option>
+                <option value="en" selected>English</option>
+                <option value="de">German</option>
+                <option value="fr">French</option>
+            </select>
+            <button class="filter-btn" onclick="resetFilters()">RESET</button>
+        </div>
+
+        <div id="jobs-count" style="font-size:10px;color:var(--text-dim);flex-shrink:0;"></div>
+        <div id="jobs-list" class="feed-list">
+            <div class="loading">Searching the debris...</div>
+        </div>
     </div>
 
-    <script>
-        "use strict";
+</div>
 
-        const POLL_INTERVAL = 5 * 60; // 5 minutes in seconds
-        let secondsLeft = POLL_INTERVAL;
-        let timerInterval;
+<script>
+"use strict";
 
-        const CORS_PROXY = "https://api.allorigins.win/get?url=";
+// ================================================
+// FIRE CANVAS HEADER
+// ================================================
+(function() {
+    const canvas = document.getElementById("fire-canvas");
+    const ctx = canvas.getContext("2d");
+    let W, H, particles = [];
 
-        // Data Management
-        const state = {
-            layoffs: [],
-            jobs: []
-        };
+    function resize() {
+        W = canvas.width = canvas.offsetWidth;
+        H = canvas.height = canvas.offsetHeight;
+    }
 
-        // UI Refs
-        const timerEl = document.getElementById("timer");
-        const layoffsList = document.getElementById("layoffs-list");
-        const jobsList = document.getElementById("jobs-list");
+    function Particle() {
+        this.x = Math.random() * W;
+        this.y = H + 10;
+        this.vx = (Math.random() - 0.5) * 1.2;
+        this.vy = -(1.5 + Math.random() * 3.5);
+        this.alpha = 0.7 + Math.random() * 0.3;
+        this.life = 0;
+        this.maxLife = 55 + Math.random() * 80;
+        this.size = 4 + Math.random() * 8;
+    }
 
-        function updateTimer() {
-            const m = Math.floor(secondsLeft / 60);
-            const s = secondsLeft % 60;
-            timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-            if (secondsLeft <= 0) {
-                refreshAll();
-            } else {
-                secondsLeft--;
+    Particle.prototype.update = function() {
+        this.life++;
+        this.x += this.vx + Math.sin(this.life * 0.12) * 0.5;
+        this.y += this.vy;
+        this.vy *= 0.99;
+        this.alpha = (1 - this.life / this.maxLife) * 0.75;
+        this.size *= 0.985;
+    };
+
+    Particle.prototype.draw = function() {
+        const t = this.life / this.maxLife;
+        const r = t < 0.5 ? 255 : Math.round(255 - (t - 0.5) * 2 * 100);
+        const g = Math.round(200 * (1 - t));
+        const b = 0;
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y, this.size * 0.6, this.size, 0, 0, Math.PI * 2);
+        ctx.fill();
+    };
+
+    function loop() {
+        ctx.clearRect(0, 0, W, H);
+        for (let i = 0; i < 5; i++) particles.push(new Particle());
+        particles = particles.filter(p => p.life < p.maxLife);
+        particles.forEach(p => { p.update(); p.draw(); });
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(loop);
+    }
+
+    window.addEventListener("resize", resize);
+    resize();
+    loop();
+})();
+
+
+// ================================================
+// APP STATE
+// ================================================
+const PROXY  = "https://api.allorigins.win/get?url=";
+const PROXY2 = "https://api.codetabs.com/v1/proxy?quest=";
+
+const state = { layoffs: [], jobs: [], filteredJobs: [] };
+
+const timerEl    = document.getElementById("timer");
+const layoffList = document.getElementById("layoffs-list");
+const jobsList   = document.getElementById("jobs-list");
+const jobsCount  = document.getElementById("jobs-count");
+const logList    = document.getElementById("debug-log");
+
+
+// ================================================
+// LOGGING
+// ================================================
+function log(msg, type = "") {
+    const el = document.createElement("div");
+    el.className = `log-entry ${type}`;
+    const now = new Date();
+    const ts = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    el.innerHTML = `<span class="t">[${ts}]</span> ${esc(msg)}`;
+    logList.appendChild(el);
+    logList.scrollTop = logList.scrollHeight;
+}
+
+function pad(n) { return String(n).padStart(2, "0"); }
+
+
+// ================================================
+// FETCH HELPERS
+// ================================================
+async function fetchTimeout(url, ms = 12000) {
+    const ctl = new AbortController();
+    const tid = setTimeout(() => ctl.abort(), ms);
+    try {
+        const r = await fetch(url, { signal: ctl.signal });
+        clearTimeout(tid);
+        return r;
+    } catch(e) {
+        clearTimeout(tid);
+        throw e;
+    }
+}
+
+async function fetchJSON(url, ms) {
+    const r = await fetchTimeout(url, ms);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
+async function fetchViaProxy(url) {
+    // Try allorigins first, fall back to codetabs
+    try {
+        const r = await fetchTimeout(`${PROXY}${encodeURIComponent(url)}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const wrapper = await r.json();
+        if (!wrapper.contents) throw new Error("empty contents");
+        return wrapper.contents;
+    } catch(e) {
+        log(`  ⚡ allorigins failed (${e.message}), trying codetabs...`, "warn");
+        const r2 = await fetchTimeout(`${PROXY2}${encodeURIComponent(url)}`);
+        if (!r2.ok) throw new Error(`codetabs HTTP ${r2.status}`);
+        return r2.text();
+    }
+}
+
+async function parseRSS(text) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, "text/xml");
+    return Array.from(doc.querySelectorAll("item")).map(item => ({
+        title: item.querySelector("title")?.textContent?.trim() || "",
+        url:   item.querySelector("link")?.textContent?.trim() || "",
+        date:  item.querySelector("pubDate")?.textContent?.trim() || "",
+        desc:  item.querySelector("description")?.textContent?.replace(/<[^>]*>/g,"").trim().slice(0,200) || "",
+    }));
+}
+
+// Enhanced RSS parser: extracts <source> name and real URL from Google News description
+async function parseRSSFull(text, defaultRegion = "global", defaultLang = "en") {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, "text/xml");
+    return Array.from(doc.querySelectorAll("item")).map(item => {
+        const title   = item.querySelector("title")?.textContent?.trim() || "";
+        const rawLink = item.querySelector("link")?.textContent?.trim() || "";
+        const date    = item.querySelector("pubDate")?.textContent?.trim() ||
+                        item.querySelector("published")?.textContent?.trim() || "";
+        const descRaw = item.querySelector("description")?.textContent || "";
+        // Try to pull the real URL from the description's first href
+        const hrefM   = descRaw.match(/href=["']([^"']+)["']/);
+        const url     = (hrefM && !hrefM[1].startsWith("https://news.google")) ? hrefM[1] : rawLink;
+        const source  = item.querySelector("source")?.textContent?.trim() || "";
+        const desc    = descRaw.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 220);
+        return { title, url, date, source, desc, region: defaultRegion, lang: defaultLang };
+    });
+}
+
+
+
+// ================================================
+// LAYOFFS — Google News RSS + HN RSS + TechCrunch tag
+// ================================================
+const LAYOFF_KEYWORDS = /layoff|laid.?off|job.?cut|fired|redundan|downsiz|retrench|workforce.?reduction|mass.?terminat|position.?eliminat|headcount/i;
+const RSS2JSON = "https://api.rss2json.com/v1/api.json?rss_url=";
+const CUTOFF_DAYS = 30; // only show articles from the last N days
+
+// Google News RSS search queries (US English, always live)
+const GN_BASE = "https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US:en&q=";
+const GN_QUERIES = [
+    { label: "GNews — layoffs",   q: "layoffs" },
+    { label: "GNews — fired",     q: "employees+fired+mass+layoff" },
+    { label: "GNews — job cuts",  q: "job+cuts+workers" },
+];
+
+async function fetchLayoffs() {
+    log("Scanning news feeds for layoff/firing coverage...");
+    layoffList.innerHTML = `<div class="loading">Sensing the flames...</div>`;
+    let all = [];
+    const cutoff = Date.now() - CUTOFF_DAYS * 86400000;
+
+    // ── Source 1: Google News RSS (primary — always live, no key needed) ──
+    for (const gq of GN_QUERIES) {
+        try {
+            log(`  → ${gq.label}...`);
+            const text = await fetchViaProxy(GN_BASE + gq.q);
+            const items = await parseRSSFull(text, "us", "en");
+            const fresh = items.filter(i => i.date && new Date(i.date) >= cutoff);
+            log(`  ✓ ${gq.label}: ${fresh.length} recent articles`, fresh.length ? "ok" : "warn");
+            fresh.forEach(i => all.push(i));
+        } catch(e) {
+            log(`  ✗ ${gq.label} failed: ${e.message}`, "error");
+        }
+    }
+
+    // ── Source 2: TechCrunch dedicated /tag/layoffs/ feed (via rss2json) ──
+    try {
+        log("  → TechCrunch /tag/layoffs feed...");
+        const data = await fetchJSON(RSS2JSON + encodeURIComponent("https://techcrunch.com/tag/layoffs/feed/"), 10000);
+        if (data.status === "ok" && Array.isArray(data.items)) {
+            const fresh = data.items.filter(i => new Date(i.pubDate) >= cutoff);
+            fresh.forEach(i => all.push({
+                title:  i.title  || "(no title)",
+                url:    i.link   || "#",
+                source: "TechCrunch",
+                date:   i.pubDate || "",
+                desc:   (i.description || "").replace(/<[^>]*>/g, "").trim().slice(0, 220),
+                region: "us", lang: "en",
+            }));
+            log(`  ✓ TechCrunch layoffs tag: ${fresh.length} articles`, fresh.length ? "ok" : "warn");
+        } else throw new Error("bad response");
+    } catch(e) {
+        log(`  ✗ TechCrunch layoffs failed: ${e.message}`, "error");
+    }
+
+    // ── Source 3: hnrss.org frontpage filtered to layoffs (cleaner than Algolia) ──
+    try {
+        log("  → HN RSS (layoffs)...");
+        const text = await fetchViaProxy("https://hnrss.org/frontpage?q=layoffs+fired+job+cuts&count=30");
+        const items = await parseRSSFull(text, "global", "en");
+        const fresh = items.filter(i => i.date && new Date(i.date) >= cutoff);
+        fresh.forEach(i => { i.source = i.source || "Hacker News"; });
+        log(`  ✓ HN RSS: ${fresh.length} stories`, fresh.length ? "ok" : "warn");
+        fresh.forEach(i => all.push(i));
+    } catch(e) {
+        log(`  ✗ HN RSS failed: ${e.message}`, "error");
+        // Fallback: HN Algolia API
+        try {
+            log("  → HN Algolia fallback...");
+            const data = await fetchJSON(
+                "https://hn.algolia.com/api/v1/search_by_date?query=layoffs+fired+job+cuts&tags=story&hitsPerPage=30");
+            (data.hits || []).filter(h => h.title && h.url && new Date(h.created_at) >= cutoff)
+                .forEach(h => all.push({ title: h.title, url: h.url, source: "Hacker News",
+                    date: h.created_at, desc: "", region: "global", lang: "en" }));
+            log(`  ✓ HN Algolia fallback: ok`, "ok");
+        } catch(e2) {
+            log(`  ✗ HN Algolia also failed: ${e2.message}`, "error");
+        }
+    }
+
+    // ── Source 4: Reddit r/layoffs public RSS ──
+    try {
+        log("  → Reddit r/layoffs RSS...");
+        const text = await fetchViaProxy("https://www.reddit.com/r/layoffs/new.rss?limit=25");
+        const items = await parseRSSFull(text, "global", "en");
+        const fresh = items.filter(i => i.date && new Date(i.date) >= cutoff);
+        fresh.forEach(i => { i.source = "Reddit r/layoffs"; });
+        log(`  ✓ Reddit r/layoffs: ${fresh.length} posts`, fresh.length ? "ok" : "warn");
+        fresh.forEach(i => all.push(i));
+    } catch(e) {
+        log(`  ✗ Reddit r/layoffs failed: ${e.message}`, "error");
+    }
+
+    // Deduplicate by URL+title, sort newest first
+    const seen = new Set();
+    all = all.filter(i => {
+        const key = (i.url && i.url !== "#") ? i.url : i.title;
+        if (!key || seen.has(key)) return false;
+        seen.add(key); return true;
+    });
+    all.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    state.layoffs = all;
+    log(`Layoff scan done — ${all.length} recent articles (last ${CUTOFF_DAYS}d).`, all.length ? "ok" : "error");
+    applyLayoffFilters();
+}
+
+function renderLayoffs(items) {
+    if (!items.length) {
+        layoffList.innerHTML = `<div class="loading">No layoff news found. (This is fine.)</div>`;
+        return;
+    }
+    layoffList.innerHTML = items.map(i => `
+        <a href="${esc(i.url)}" target="_blank" rel="noopener" class="item-card">
+            <div class="card-left">
+                <div class="card-source">${esc(i.source)}</div>
+                <div class="card-date">${fmtDate(i.date)}</div>
+            </div>
+            <div class="card-body">
+                <div class="card-title">${esc(i.title)}</div>
+                ${i.desc ? `<div class="card-desc">${esc(i.desc)}</div>` : ""}
+            </div>
+        </a>
+    `).join("");
+}
+
+
+// ================================================
+// JOBS — Multi-source Aggregation
+// ================================================
+async function fetchJobs() {
+    log("Scanning job boards...");
+    jobsList.innerHTML = `<div class="loading">Searching the debris...</div>`;
+    let all = [];
+
+    await Promise.allSettled([
+        fetchRemotive(all),
+        fetchRemoteOk(all),
+        fetchArbeitnow(all),
+        fetchJobicy(all),
+        fetchHimalayas(all),
+        fetchWWR(all),
+    ]);
+
+    // Deduplicate
+    const seen = new Set();
+    all = all.filter(j => {
+        const key = `${j.title}|${j.company}`;
+        if (seen.has(key)) return false; seen.add(key); return true;
+    });
+
+    all.sort((a, b) => new Date(b.date) - new Date(a.date));
+    state.jobs = all;
+    state.filteredJobs = [...all];
+    log(`Job scan done — ${all.length} open positions.`, all.length ? "ok" : "error");
+    applyFilters();
+}
+
+async function fetchRemotive(out) {
+    try {
+        log("  → Fetching Remotive.com API...");
+        const data = await fetchJSON("https://remotive.com/api/remote-jobs?limit=100");
+        if (!data || !data.jobs) throw new Error("No jobs array");
+        const fresh = data.jobs.filter(j => {
+            const d = new Date(j.publication_date);
+            return (Date.now() - d) < 45 * 86400000;
+        });
+        fresh.forEach(j => {
+            const rawDesc = j.description.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220);
+            const loc = (j.candidate_required_location || "").toLowerCase();
+            out.push({
+                id:       `rem-${j.id}`,
+                title:    j.title,
+                company:  j.company_name,
+                source:   "Remotive",
+                url:      j.url,
+                type:     j.job_type || "",
+                category: j.category || "",
+                salary:   extractSalary(j.salary, rawDesc),
+                desc:     rawDesc,
+                date:     j.publication_date,
+                location: loc,
+                lang:     loc.includes("de") || loc.includes("german") ? "de" :
+                          loc.includes("fr") || loc.includes("french") ? "fr" : "en",
+            });
+        });
+        log(`  ✓ Remotive: ${fresh.length} active jobs`, "ok");
+    } catch(e) {
+        log(`  ✗ Remotive failed: ${e.message}`, "error");
+    }
+}
+
+async function fetchRemoteOk(out) {
+    try {
+        log("  → Fetching RemoteOK via proxy...");
+        const text = await fetchViaProxy("https://remoteok.com/remote-jobs.json");
+        const items = JSON.parse(text);
+        if (!Array.isArray(items)) throw new Error("Not an array");
+        const cutoff = Date.now() - 45 * 86400000;
+        let count = 0;
+        items.forEach(j => {
+            if (!j.position || !j.company) return;
+            const d = new Date(j.date);
+            if (d < cutoff) return;
+            const rawDesc = ((j.description || "") + " " + (j.tags || []).join(" ")).trim().slice(0,220);
+            const loc = (j.location || "worldwide").toLowerCase();
+            out.push({
+                id:       `rok-${j.id}`,
+                title:    j.position,
+                company:  j.company,
+                source:   "RemoteOK",
+                url:      j.url || `https://remoteok.com/remote-jobs/${j.id}`,
+                type:     "full_time",
+                category: (j.tags || []).join(", "),
+                salary:   extractSalary(j.salary, rawDesc),
+                desc:     rawDesc,
+                date:     j.date,
+                location: loc.includes("worldwide") || loc.includes("remote") ? "remote" : loc,
+                lang:     "en",
+            });
+            count++;
+        });
+        log(`  ✓ RemoteOK: ${count} active jobs`, "ok");
+    } catch(e) {
+        log(`  ✗ RemoteOK failed: ${e.message}`, "error");
+    }
+}
+
+async function fetchArbeitnow(out) {
+    try {
+        log("  → Fetching Arbeitnow API...");
+        // Arbeitnow is a free, CORS-friendly API — no proxy needed
+        const data = await fetchJSON("https://www.arbeitnow.com/api/job-board-api?page=1", 12000);
+        if (!data || !Array.isArray(data.data)) throw new Error("No data array");
+        const cutoff = Date.now() - 45 * 86400000;
+        let count = 0;
+        data.data.forEach(j => {
+            // created_at can be a Unix epoch (integer) or ISO string
+            let d = null;
+            if (j.created_at) {
+                d = typeof j.created_at === "number"
+                    ? new Date(j.created_at * 1000)
+                    : new Date(j.created_at);
+                if (isNaN(d)) d = null;
+            }
+            if (d && d < cutoff) return;
+            const rawDesc = (j.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220);
+            const loc = (j.location || "").toLowerCase();
+            // Detect language from title + description (umlauts, German patterns, m/w/d notation)
+            const fullText = `${j.title || ""} ${rawDesc}`;
+            const isGerman  = /[\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]|\(m\/w\/d\)|\(w\/m\/d\)|\(m\/f\/d\)|\(all genders\)|\bund\b|\bfür\b|\bbei\b|\bvon\b|\bmit\b|\bdie\b|\bder\b|\bdas\b|\bwir\b|\bSie\b|\bist\b|\bsind\b|\bals\b|\bauf\b/i.test(fullText);
+            const isFrench  = /[\u00e0\u00e2\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f9\u00fb\u00e7]|\bdu\b|\bdes\b|\bune\b|\bpour\b|\bdans\b|\bvous\b/i.test(fullText);
+            const detectedLang = isGerman ? "de" : isFrench ? "fr" : "en";
+            out.push({
+                id:       `abw-${j.slug}`,
+                title:    j.title   || "(no title)",
+                company:  j.company_name || "Unknown",
+                source:   "Arbeitnow",
+                url:      j.url    || `https://www.arbeitnow.com/jobs/${j.slug}`,
+                type:     j.remote ? "full_time" : "full_time",
+                category: j.tags  ? j.tags.join(", ") : "",
+                salary:   extractSalary("", rawDesc),
+                desc:     rawDesc,
+                date:     d ? d.toISOString() : "",
+                location: j.remote ? "remote" : (loc || "eu"),
+                lang:     detectedLang,
+            });
+            count++;
+        });
+        log(`  ✓ Arbeitnow: ${count} active jobs`, "ok");
+    } catch(e) {
+        log(`  ✗ Arbeitnow failed: ${e.message}`, "error");
+    }
+}
+
+function extractSalary(raw, desc) {
+    if (raw) return String(raw).slice(0, 50);
+    const m = desc.match(/\$[\d,]+(?:k)?(?:\s*[-–]\s*\$[\d,]+(?:k)?)?(?:\s*\/\s*(?:hr|hour|yr|year|mo))?/i);
+    return m ? m[0] : "";
+}
+
+async function fetchJobicy(out) {
+    try {
+        log("  → Fetching Jobicy API...");
+        const data = await fetchJSON("https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa", 12000);
+        if (!data || !Array.isArray(data.jobs)) throw new Error("No jobs array");
+        const cutoff = Date.now() - 45 * 86400000;
+        let count = 0;
+        data.jobs.forEach(j => {
+            const d = j.pubDate ? new Date(j.pubDate) : null;
+            if (d && d < cutoff) return;
+            const salary = (j.annualSalaryMin && j.annualSalaryMax)
+                ? `$${Math.round(j.annualSalaryMin/1000)}k–$${Math.round(j.annualSalaryMax/1000)}k`
+                : "";
+            out.push({
+                id:       `jcy-${j.id}`,
+                title:    j.jobTitle || "(no title)",
+                company:  j.companyName || "Unknown",
+                source:   "Jobicy",
+                url:      j.url || "#",
+                type:     (j.jobType || ["full_time"])[0].replace(/[- ]/g, "_").toLowerCase(),
+                category: (j.jobIndustry || []).join(", "),
+                salary,
+                desc:     (j.jobExcerpt || "").replace(/<[^>]*>/g, " ").trim().slice(0, 220),
+                date:     j.pubDate || "",
+                location: (j.jobGeo || "remote").toLowerCase(),
+                lang:     "en",
+            });
+            count++;
+        });
+        log(`  ✓ Jobicy: ${count} active jobs`, "ok");
+    } catch(e) {
+        log(`  ✗ Jobicy failed: ${e.message}`, "error");
+    }
+}
+
+async function fetchHimalayas(out) {
+    try {
+        log("  → Fetching Himalayas API...");
+        const data = await fetchJSON("https://himalayas.app/jobs/api?qty=100", 14000);
+        if (!data || !Array.isArray(data.jobs)) throw new Error("No jobs array");
+        const cutoff = Date.now() - 45 * 86400000;
+        let count = 0;
+        data.jobs.forEach(j => {
+            const d = j.createdAt ? new Date(j.createdAt) : null;
+            if (d && d < cutoff) return;
+            out.push({
+                id:       `him-${j.id || j.slug}`,
+                title:    j.title || "(no title)",
+                company:  j.companyName || j.company?.name || "Unknown",
+                source:   "Himalayas",
+                url:      j.applicationLink || j.url || "#",
+                type:     "full_time",
+                category: (j.categories || []).join(", "),
+                salary:   j.salary || extractSalary("", j.description || ""),
+                desc:     (j.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220),
+                date:     j.createdAt || j.pubDate || "",
+                location: "remote",
+                lang:     "en",
+            });
+            count++;
+        });
+        log(`  ✓ Himalayas: ${count} active jobs`, "ok");
+    } catch(e) {
+        log(`  ✗ Himalayas failed: ${e.message}`, "error");
+    }
+}
+
+async function fetchWWR(out) {
+    // We Work Remotely — dedicated remote job board, accessed via rss2json
+    const WWR_FEEDS = [
+        { label: "WWR Programming", url: "https://weworkremotely.com/categories/remote-programming-jobs.rss",   category: "Engineering" },
+        { label: "WWR Design",       url: "https://weworkremotely.com/categories/remote-design-jobs.rss",   category: "Design" },
+        { label: "WWR DevOps",       url: "https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss", category: "DevOps" },
+    ];
+    const RSS2J = "https://api.rss2json.com/v1/api.json?rss_url=";
+    const cutoff = Date.now() - 45 * 86400000;
+    for (const feed of WWR_FEEDS) {
+        try {
+            log(`  → ${feed.label} via rss2json...`);
+            const data = await fetchJSON(RSS2J + encodeURIComponent(feed.url), 10000);
+            if (data.status !== "ok" || !Array.isArray(data.items)) throw new Error("bad response");
+            const fresh = data.items.filter(i => new Date(i.pubDate) >= cutoff);
+            fresh.forEach(i => {
+                // WWR title format: "Company: Job Title at Company"
+                const cleanTitle = (i.title || "").replace(/^[^:]+:\s*/,"").trim();
+                out.push({
+                    id:       `wwr-${i.guid || i.link}`,
+                    title:    cleanTitle || i.title || "(no title)",
+                    company:  (i.title || "").split(":")[0].trim() || "Unknown",
+                    source:   "WeWorkRemotely",
+                    url:      i.link || "#",
+                    type:     "full_time",
+                    category: feed.category,
+                    salary:   extractSalary("", (i.description || "").replace(/<[^>]*>/g, " ")),
+                    desc:     (i.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220),
+                    date:     i.pubDate || "",
+                    location: "remote",
+                    lang:     "en",
+                });
+            });
+            log(`  ✓ ${feed.label}: ${fresh.length} jobs`, fresh.length ? "ok" : "warn");
+        } catch(e) {
+            log(`  ✗ ${feed.label} failed: ${e.message}`, "error");
+        }
+    }
+}
+
+
+// Category → regex map: matches against title + category tags + description
+const CAT_KEYWORDS = {
+    "software dev": /\b(engineer|developer|software|architect|frontend|back.?end|full.?stack|web dev|mobile|ios|android|react|vue|angular|node\.?js|python|java\b|ruby|golang|rust\b|php|typescript|kotlin|swift\b|rails|django|spring)/i,
+    "devops":       /\b(devops|sre|site reliability|platform eng|infrastructure|infra|kubernetes|k8s|docker|cloud|aws|gcp|azure|terraform|ci.?cd|devsec|gitops|ansible)/i,
+    "qa":           /\b(qa\b|quality assurance|quality engineer|test engineer|tester|sdet|automation test|manual test|selenium|playwright|cypress|jest|pytest|bug report|regression|test plan)/i,
+    "security":     /\b(security|infosec|cybersec|pentest|penetration test|soc analyst|siem|threat|vulnerability|compliance|devsecops|iam\b|identity|zero.?trust|soc\b|cissp|ciso)/i,
+    "design":       /\b(design|ux|ui\b|figma|product design|visual|graphic|creative|illustrator|motion|sketch\b)/i,
+    "product":      /\b(product manager|product owner|\bpm\b|scrum|agile|roadmap|product ops|product lead)/i,
+    "data":         /\b(data|analytics|analyst|machine learning|\bml\b|\bai\b|scientist|tableau|\bsql\b|bigquery|spark|databricks|\betl\b|\bbi\b|llm|nlp)/i,
+    "writing":      /\b(technical writer|copywriter|content writer|editor|documentation|proposal writer|ux writer|content strategist|blogger|journalist|communications)/i,
+    "marketing":    /\b(marketing|seo|sem|content|growth|social media|brand|campaign|email marketing|\bppc\b)/i,
+    "finance":      /\b(financ|account|legal|compliance|tax|audit|controller|cfo|bookkeep|payroll)/i,
+    "customer":     /\b(customer success|support|helpdesk|\bcx\b|client success|account manager|customer service|csm\b)/i,
+    "sales":        /\b(sales|business development|\bbd\b|account executive|revenue|\bcrm\b|closing|quota|\bbdr\b|\bsdr\b)/i,
+    "operations":   /\b(operations|ops\b|coordinator|administrator|office manager|project coordinator|program manager|supply chain|logistics|procurement|facilities)/i,
+    "management":   /\b(manager|director|\bvp\b|head of|\bhr\b|recruiter|talent|people ops|chief|executive|ceo|cto)/i,
+};
+
+function applyFilters() {
+    const kw      = document.getElementById("filter-keyword").value.toLowerCase().trim();
+    const cat     = document.getElementById("filter-category").value.toLowerCase();
+    const typ     = document.getElementById("filter-type").value;
+    const pay     = parseInt(document.getElementById("filter-pay").value) || 0;
+    const country = document.getElementById("filter-country").value.toLowerCase();
+    const lang    = document.getElementById("filter-lang").value.toLowerCase();
+
+    state.filteredJobs = state.jobs.filter(j => {
+        if (kw && !`${j.title} ${j.company} ${j.desc}`.toLowerCase().includes(kw)) return false;
+        // Use regex keyword matching against full title+category+desc for reliable results
+        if (cat) {
+            const re = CAT_KEYWORDS[cat];
+            const txt = `${j.title} ${j.category} ${j.desc}`;
+            if (re ? !re.test(txt) : !txt.toLowerCase().includes(cat)) return false;
+        }
+        if (typ && j.type && !j.type.includes(typ)) return false;
+        if (country && j.location) {
+            const loc = j.location.toLowerCase();
+            const isOpenToAll = /remote|worldwide|anywhere|global/.test(loc);
+            // Remote/worldwide jobs are accessible from any country — pass them through
+            if (!isOpenToAll && !loc.includes(country)) return false;
+        }
+        if (lang && j.lang && j.lang !== lang) return false;
+        if (pay && j.salary) {
+            const nums = j.salary.match(/\d[\d,]*/g);
+            if (nums) {
+                const max = Math.max(...nums.map(n => parseInt(n.replace(/,/g,""))));
+                const v = max < 1000 ? max * 1000 : max;
+                if (v < pay * 1000) return false;
             }
         }
+        return true;
+    });
 
-        async function refreshAll() {
-            secondsLeft = POLL_INTERVAL;
-            console.log("Polling for updates...");
-            fetchLayoffs();
-            fetchJobs();
+    // Always newest first
+    state.filteredJobs.sort((a, b) => new Date(b.date) - new Date(a.date));
+    renderJobs(state.filteredJobs);
+}
+
+function resetFilters() {
+    ["filter-keyword","filter-category","filter-type","filter-pay","filter-country","filter-lang"]
+        .forEach(id => document.getElementById(id).value = "");
+    applyFilters();
+}
+
+// ================================================
+// FILTERS — CUTS
+// ================================================
+function applyLayoffFilters() {
+    const kw      = document.getElementById("cuts-keyword").value.toLowerCase().trim();
+    const country = document.getElementById("cuts-country").value.toLowerCase();
+    const lang    = document.getElementById("cuts-lang").value.toLowerCase();
+
+    let filtered = state.layoffs.filter(i => {
+        if (kw && !i.title.toLowerCase().includes(kw)) return false;
+        if (country) {
+            // Items tagged "global" pass all region filters; otherwise must match
+            const reg = (i.region || "global").toLowerCase();
+            if (reg !== "global" && reg !== country) return false;
         }
+        if (lang && (i.lang || "en") !== lang) return false;
+        return true;
+    });
 
-        // --- FETCHERS ---
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        async function fetchLayoffs() {
-            try {
-                // GDELT for general news about layoffs
-                const gdeltUrl = `https://api.gdeltproject.org/api/v2/doc/doc?query=layoffs%20OR%20"job%20cuts"%20OR%20"firings"&mode=artlist&format=json&maxresults=25`;
-                // Use proxy to avoid CORS/Rate limits if needed, but GDELT is usually open.
-                const resp = await fetch(gdeltUrl);
-                const data = await resp.json();
-                
-                if (data.articles) {
-                    state.layoffs = data.articles.map(a => ({
-                        title: a.title,
-                        url: a.url,
-                        source: a.sourcecountry || "World News",
-                        date: a.seendate.split('T')[0]
-                    }));
-                    renderList(layoffsList, state.layoffs);
-                }
-            } catch (e) {
-                console.error("GDELT fetch failed", e);
-                layoffsList.innerHTML = `<div class="loading">Signal disrupted. Retrying...</div>`;
-            }
-        }
+    const cutsCount = document.getElementById("cuts-count");
+    cutsCount.textContent = filtered.length
+        ? `Showing ${filtered.length} article${filtered.length === 1 ? "" : "s"}`
+        : "";
+    renderLayoffs(filtered);
+}
 
-        async function fetchJobs() {
-            try {
-                // Hacker News Algolia for hiring threads
-                const hnUrl = `https://hn.algolia.com/api/v1/search?query="Who%20is%20hiring"&tags=story&hitsPerPage=3`;
-                const hnResp = await fetch(hnUrl);
-                const hnData = await hnResp.json();
-                
-                let combinedJobs = [];
+function resetLayoffFilters() {
+    ["cuts-keyword","cuts-country","cuts-lang"]
+        .forEach(id => document.getElementById(id).value = "");
+    applyLayoffFilters();
+}
 
-                // HN Threads
-                if (hnData.hits) {
-                    hnData.hits.forEach(hit => {
-                        combinedJobs.push({
-                            title: hit.title,
-                            url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
-                            source: "Hacker News",
-                            date: hit.created_at.split('T')[0]
-                        });
-                    });
-                }
+const TYPE_LABELS = { full_time: "Full-Time", part_time: "Part-Time", contract: "Contract", freelance: "Freelance" };
 
-                // RemoteOK API (requires proxy usually)
-                const remoteOkUrl = encodeURIComponent("https://remoteok.com/remote-jobs.json");
-                const roResp = await fetch(`${CORS_PROXY}${remoteOkUrl}`);
-                const roData = await roResp.json();
-                const items = JSON.parse(roData.contents);
-                
-                if (Array.isArray(items)) {
-                    // Filter out non-job objects
-                    items.slice(1, 20).forEach(job => {
-                        combinedJobs.push({
-                            title: `${job.position} @ ${job.company}`,
-                            url: job.url,
-                            source: "RemoteOK",
-                            date: new Date(job.date).toISOString().split('T')[0]
-                        });
-                    });
-                }
-                
-                state.jobs = combinedJobs.sort((a,b) => new Date(b.date) - new Date(a.date));
-                renderList(jobsList, state.jobs);
-            } catch (e) {
-                console.error("Jobs fetch failed", e);
-                jobsList.innerHTML = `<div class="loading">Opportunities hidden in smoke. Retrying...</div>`;
-            }
-        }
+function renderJobs(items) {
+    jobsCount.textContent = items.length
+        ? `Showing ${items.length} position${items.length === 1 ? "" : "s"}`
+        : "";
 
-        // --- RENDERING ---
+    if (!items.length) {
+        jobsList.innerHTML = `<div class="loading">No matches. Adjust filters or wait for next scan.</div>`;
+        return;
+    }
 
-        function renderList(container, items) {
-            if (!items.length) {
-                container.innerHTML = `<div class="loading">Nothing found. This is fine.</div>`;
-                return;
-            }
-            container.innerHTML = items.map(item => `
-                <a href="${item.url}" target="_blank" class="item-card">
-                    <span class="source">${item.source}</span>
-                    <span class="title">${escapeHtml(item.title)}</span>
-                    <div class="meta">
-                        <span>${item.date}</span>
-                        <span>READ MORE →</span>
-                    </div>
-                </a>
-            `).join("");
-        }
+    jobsList.innerHTML = items.map(j => `
+        <a href="${esc(j.url)}" target="_blank" rel="noopener" class="item-card">
+            <div class="card-left">
+                <div class="card-source">${esc(j.source)}</div>
+                <div class="card-date">${fmtDate(j.date)}</div>
+            </div>
+            <div class="card-body">
+                <div class="card-title">${esc(j.title)}</div>
+                <div class="card-company">${esc(j.company)}</div>
+                ${j.salary ? `<div class="card-pay">💰 ${esc(j.salary)}</div>` : ""}
+                ${j.desc ? `<div class="card-desc">${esc(j.desc)}</div>` : ""}
+                ${j.type ? `<div class="card-meta"><span class="card-tag tag-type">${esc(TYPE_LABELS[j.type] || j.type)}</span></div>` : ""}
+            </div>
+        </a>
+    `).join("");
+}
 
-        function escapeHtml(s) {
-            return String(s).replace(/[&<>"']/g, (c) =>
-                ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-        }
 
-        // --- INIT ---
+// ================================================
+// REFRESH
+// ================================================
+async function refreshAll() {
+    timerEl.textContent = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    log("══════════ NEW SCAN INITIATED ══════════", "ok");
+    await Promise.allSettled([fetchLayoffs(), fetchJobs()]);
+    log("══════════ SCAN COMPLETE ══════════");
+}
 
-        function init() {
-            setInterval(updateTimer, 1000);
-            refreshAll();
-        }
 
-        init();
-    </script>
+// ================================================
+// UTILS
+// ================================================
+function esc(s) {
+    return String(s || "").replace(/[&<>"']/g, c =>
+        ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function fmtDate(raw) {
+    try {
+        const d = new Date(raw);
+        if (isNaN(d)) return raw || "—";
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch { return raw || "—"; }
+}
+
+
+// ================================================
+// BOOT
+// ================================================
+// BOOT — explicitly set all filter defaults
+document.getElementById("cuts-country").value = "us";
+document.getElementById("cuts-lang").value = "en";
+document.getElementById("filter-country").value = "us";
+document.getElementById("filter-lang").value = "en";
+refreshAll();
+</script>
 </body>
 </html>
