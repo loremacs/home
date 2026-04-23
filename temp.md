@@ -1,70 +1,157 @@
-The GitHub robots.txt is blocking direct repo fetching. Let me try to get the raw source files another way.Now I have a solid picture of the app and the data landscape. Let me put together a thorough review.
-
-Here's a full review of **This Is Fine** — it's a genuinely clever concept: one page, two sides, layoffs and jobs, "this is fine" energy while Rome burns. The bones are good. The filtering system is thoughtful. Here's how the data pipeline could be significantly stronger:
+Yes, that's exactly the right instinct — cast a wide net across many independent sources, then deduplicate aggressively. The current dedup logic is already there, it just needs more feeds coming in. Let me search for what's actually reliably available right now.Good — I have everything I need. Here's the updated, consolidated plan with the "wide net + dedup" strategy baked in:
 
 ---
 
-## 🔥 Data Sources — The Cuts Side
+## Updated Plan: Wide Net + Deduplicate
 
-**What you're likely doing now:** Querying news headlines via something like a Claude/LLM scan or a manual news RSS (the "SCAN NOW" button suggests on-demand fetch).
+The agent's diagnosis is **partially right but incomplete**. Yes, rss2json's 10-item cap is a problem. Yes, GDELT is flaky under network load. But the root cause of "5 results" is actually a combination of three things hitting simultaneously:
 
-**What you could add:**
+1. GDELT times out when fired alongside 20+ other parallel requests
+2. rss2json caps TechCrunch at 10 items, most of which dedup against GDELT
+3. The `"us"` boot default on the cuts filter is still hardcoded and **hiding everything tagged `"global"`** (all Reddit, most HN)
 
-**1. layoffs.fyi (crowdsourced, the gold standard)**
-This is the most trusted community dataset. They don't have a public API, but their data is structured and scrapable, and several community tools have reverse-engineered their Airtable backend. You could periodically sync their data rather than relying purely on news scraping.
-
-**2. TrueUp.io's layoff tracker** — they publish structured data and it's updated daily. More parseable than layoffs.fyi.
-
-**3. WARN Act notices (legal filings)**
-This is underutilized gold. The US federal WARN Act legally requires companies to report mass layoffs 60 days in advance. Several states publish these as public CSVs/feeds. You'd get *earlier* signal than news ever gives you. BigLocalNews runs an automated WARN scraper (it's open source on GitHub) that aggregates across states. For EU/UK you have similar consultation notice requirements.
-
-**4. RSS feeds as a real-time supplement**
-TechCrunch layoffs tag, Crunchbase News, and layoffstracker.com all have RSS feeds. Rather than scanning on-demand, you could auto-ingest these on a schedule (hourly/daily) and normalize the data.
+The agent's fix only addressed #2 partially. Here's the complete corrected plan:
 
 ---
 
-## 💼 Data Sources — The Jobs Side
-
-**What you're likely doing now:** Probably scraping Remotive, We Work Remotely, or similar job boards.
-
-**What you could add:**
-
-**1. Greenhouse & Lever public APIs (no auth needed)**
-Greenhouse has a simple public API at `api.greenhouse.io/v1/boards/{clientname}/jobs` that returns JSON job listings, and Lever similarly has a public endpoint at `api.lever.co/v0/postings/{clientname}` that supports filtering by team, location, commitment level, and more — no authentication required. These are used by hundreds of major tech employers. You could query a curated list of known companies to pull fresh postings directly from their ATS.
-
-**2. Remotive API** — free, JSON, specifically remote tech roles, very filterable by category and salary.
-
-**3. The Muse API** — free tier, returns rich job data including company culture info.
-
-**4. Arbeitnow** — free European job board API, good for your German/EU language filters.
+### 🔴 FIX 1 — Delete the duplicate `fetchHimalayas`
+The second definition at line ~1107 overwrites the first. Delete lines 1107–1137 entirely. Keep only the proxy version.
 
 ---
 
-## 🧠 Data Quality & Enrichment Improvements
-
-**Right now** you appear to be getting raw text results and displaying them. Here's how to make the data richer:
-
-**1. Company enrichment via Clearbit / People Data Labs (free tiers)**
-Add company logo, industry, headcount, funding stage, and HQ country to each layoff event. This turns a headline into a structured card.
-
-**2. Deduplication pipeline**
-Layoff news gets republished across dozens of outlets. You need a fingerprinting step (company name + date + approximate count) to collapse duplicates before they hit the UI.
-
-**3. Confidence scoring on layoff count**
-Many reports say "hundreds" or "significant portion." A structured field like `count: null, count_text: "several hundred"` is better than hallucinated numbers.
-
-**4. Cross-referencing cuts → opportunities**
-This is the most powerful thing unique to your dual-panel concept: when a company appears in the cuts panel, auto-surface if their competitors are hiring on the jobs side. "Amazon cut 500 → Google, Meta, and Anthropic are hiring engineers right now."
+### 🔴 FIX 2 — Change the boot default for cuts-country
+**Line 1341, change:**
+```js
+document.getElementById("cuts-country").value = "us";
+// → change to:
+document.getElementById("cuts-country").value = "";
+```
+The `"us"` default is hiding all Reddit posts and most HN stories because they're tagged `"global"`. Show everything by default, let users filter down.
 
 ---
 
-## ⚙️ Architecture Suggestions
-
-- **Cache with TTL** — layoff data doesn't change by the second. Cache the scan results for 30–60 min to avoid hammering sources.
-- **Background worker** — move the scan off the user's "SCAN NOW" click into a scheduled server-side job (cron or Vercel cron), so data is always fresh when users land.
-- **Structured schema** — normalize everything into `{ company, date, count, region, source_url, source_name, roles_affected[] }` before rendering. Right now UI filters likely depend on the LLM categorizing things correctly in freeform text, which is fragile.
-- **User submissions** — let affected workers self-report (with spam protection). Layoffs.fyi grew largely through this. A simple form feeding into a moderation queue adds real community signal.
+### 🔴 FIX 3 — Stop running `fetchLayoffs` and `fetchJobs` in parallel
+**Line ~1314, change:**
+```js
+await Promise.allSettled([fetchLayoffs(), fetchJobs()]);
+// → change to:
+await fetchLayoffs();
+await fetchJobs();
+```
+Firing 3 GDELT requests + 16 Greenhouse requests + 6 other job board fetches simultaneously at boot is what causes GDELT's 14s timeout to fire. Run them sequentially and GDELT will actually respond.
 
 ---
 
-The biggest single win would probably be **adding WARN Act data** for early US signal + **Greenhouse/Lever API polling** for the jobs side — both are free and structured, which means less LLM normalization work and higher data reliability. Want me to prototype any of these integrations?
+### 🔴 FIX 4 — Stagger the 3 GDELT queries inside `fetchLayoffs`
+Instead of `Promise.allSettled(GDELT_QUERIES.map(...))`, run them with a short delay between each:
+```js
+for (const gq of GDELT_QUERIES) {
+    await fetchGDELTQuery(gq); // pull the logic into a named function
+    await new Promise(r => setTimeout(r, 600));
+}
+```
+GDELT explicitly documents that burst parallel requests trigger rate limiting. Staggering by 600ms each costs ~1.2 seconds total but prevents dropping all 3 queries at once.
+
+---
+
+### 🟡 FIX 5 — Add more layoff RSS sources (wide net strategy)
+
+All of these are fetchable via `fetchViaProxy` → `parseRSS`, same pattern already used for TechCrunch. Add them as a new `fetchLayoffFeeds()` function:
+
+| Source | RSS URL | Notes |
+|---|---|---|
+| Crunchbase News | `https://news.crunchbase.com/sections/layoffs/feed/` | High-quality, startup-focused |
+| LayoffsTracker | `https://layoffstracker.com/feed/` | Dedicated tracker, global |
+| The Guardian Business | `https://www.theguardian.com/business/layoffs/rss` | UK/EU coverage |
+| Reuters Business | `https://feeds.reuters.com/reuters/businessNews` | Filter with `LAYOFF_KEYWORDS` |
+| BBC Business | `http://feeds.bbci.co.uk/news/business/rss.xml` | Filter with `LAYOFF_KEYWORDS` |
+| Fortune | `https://fortune.com/section/finance/feed/` | Filter with `LAYOFF_KEYWORDS` |
+
+All go through the same `fetchViaProxy` → `parseRSS` → `LAYOFF_KEYWORDS.test(title)` pipeline already in the code. Add them in a loop:
+```js
+const LAYOFF_RSS_FEEDS = [
+    { url: "https://news.crunchbase.com/sections/layoffs/feed/", region: "us",     label: "Crunchbase" },
+    { url: "https://layoffstracker.com/feed/",                   region: "global", label: "LayoffsTracker" },
+    { url: "https://feeds.reuters.com/reuters/businessNews",     region: "global", label: "Reuters" },
+    { url: "http://feeds.bbci.co.uk/news/business/rss.xml",      region: "uk",     label: "BBC Business" },
+    { url: "https://fortune.com/section/finance/feed/",          region: "us",     label: "Fortune" },
+];
+
+for (const feed of LAYOFF_RSS_FEEDS) {
+    try {
+        const text = await fetchViaProxy(feed.url);
+        const items = await parseRSS(text);
+        const fresh = items.filter(i => 
+            LAYOFF_KEYWORDS.test(i.title) && new Date(i.date) >= cutoff
+        );
+        fresh.forEach(i => all.push({ ...i, source: feed.label, region: feed.region, lang: "en" }));
+        log(`  ✓ ${feed.label}: ${fresh.length} articles`, fresh.length ? "ok" : "warn");
+    } catch(e) {
+        log(`  ✗ ${feed.label} failed: ${e.message}`, "error");
+    }
+}
+```
+
+The existing dedup (URL fingerprint + title fingerprint) will handle duplicates across all these sources automatically. More sources = more total unique articles, not more noise.
+
+---
+
+### 🟡 FIX 6 — Improve the dedup fingerprint so more near-duplicates get caught
+
+The current title fingerprint is: `title.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim().slice(0, 80)`
+
+This is good but won't catch "Amazon Cuts 500 Jobs" vs "Amazon to Cut 500 Jobs". Add word-based normalization:
+
+```js
+function titleFingerprint(title) {
+    return title.toLowerCase()
+        .replace(/\b(the|a|an|to|is|are|was|were|will|of|in|at|by|for|on|and|or)\b/g, "")
+        .replace(/[^a-z0-9]/g, "")
+        .trim()
+        .slice(0, 60);
+}
+```
+
+---
+
+### 🟡 FIX 7 — Fix job dedup key, Arbeitnow type, silent Greenhouse errors
+
+These are all one-liners from the previous plan, still unaddressed:
+
+```js
+// Dedup key (line ~856):
+const key = j.id || `${j.title}|${j.company}|${j.location}`;
+
+// Arbeitnow type (line ~968):
+type: j.job_type || "full_time",
+
+// Greenhouse silent catch (line ~1067):
+} catch(e) { log(`  ✗ Greenhouse/${slug}: ${e.message}`, "warn"); }
+```
+
+---
+
+### 🟠 FIX 8 — Fix extractSalary to handle £ and €
+
+```js
+const m = desc.match(/[\$£€][\d,]+(?:k)?(?:\s*[-–]\s*[\$£€]?[\d,]+(?:k)?)?(?:\s*\/\s*(?:hr|hour|yr|year|mo))?/i);
+```
+
+---
+
+### Expected result after all fixes
+
+| Source | Expected articles | Method |
+|---|---|---|
+| GDELT (3 queries, staggered) | 30–75 | Direct JSON |
+| TechCrunch | 10–30 | Proxy → RSS |
+| Crunchbase News | 10–20 | Proxy → RSS |
+| LayoffsTracker | 5–15 | Proxy → RSS |
+| Reuters (filtered) | 5–20 | Proxy → RSS |
+| BBC Business (filtered) | 3–10 | Proxy → RSS |
+| Fortune (filtered) | 3–10 | Proxy → RSS |
+| HN Algolia | 10–30 | Direct JSON |
+| r/layoffs | 20–50 | Direct JSON |
+| r/cscareerquestions | 5–15 | Direct JSON |
+
+**Total before dedup: ~100–275 articles. After dedup: expect 60–150 unique items** — a massive improvement from 5. The dedup handles the overlap. That's the whole point.

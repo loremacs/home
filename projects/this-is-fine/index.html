@@ -613,6 +613,23 @@ async function fetchJSON(url, ms) {
     return r.json();
 }
 
+// Like fetchJSON, but if the direct call errors (CORS block, NetworkError, timeout),
+// falls back to the allorigins → codetabs proxy chain. Used for third-party JSON APIs
+// that are sometimes blocked by the user's ISP / network (Reddit, GDELT, HN Algolia).
+async function fetchJSONSafe(url, ms = 12000) {
+    try {
+        return await fetchJSON(url, ms);
+    } catch(directErr) {
+        // Retry via proxy chain — fetchViaProxy already tries allorigins then codetabs
+        const text = await fetchViaProxy(url);
+        try {
+            return JSON.parse(text);
+        } catch(parseErr) {
+            throw new Error(`proxy returned non-JSON: ${parseErr.message}`);
+        }
+    }
+}
+
 async function fetchViaProxy(url) {
     // Try allorigins first, fall back to codetabs
     try {
@@ -681,12 +698,14 @@ async function fetchLayoffs() {
     const cutoff = Date.now() - CUTOFF_DAYS * 86400000;
 
     // ── Source 1: GDELT DOC 2.0 (direct JSON, no proxy, no key, 75 results/query) ──
+    // Stagger sequentially with 600ms delay — GDELT burst-rate-limits parallel requests.
     const GDELT_QUERIES = [
         { label: "GDELT — layoffs/fired",     q: "layoffs fired employees" },
         { label: "GDELT — job cuts",          q: "\"job cuts\" OR \"laid off\" OR \"workforce reduction\"" },
         { label: "GDELT — tech mass layoffs", q: "tech company layoffs 2025 OR 2026" },
     ];
-    await Promise.allSettled(GDELT_QUERIES.map(async gq => {
+    for (let gi = 0; gi < GDELT_QUERIES.length; gi++) {
+        const gq = GDELT_QUERIES[gi];
         try {
             log(`  → ${gq.label}...`);
             const params = new URLSearchParams({
@@ -697,7 +716,7 @@ async function fetchLayoffs() {
                 sourcelang: "english",
                 timespan:   `${CUTOFF_DAYS}d`,
             });
-            const data = await fetchJSON(`${GDELT_BASE}?${params}`, 14000);
+            const data = await fetchJSONSafe(`${GDELT_BASE}?${params}`, 20000);
             if (!Array.isArray(data?.articles)) throw new Error("No articles array");
             const mapped = data.articles
                 .filter(a => LAYOFF_KEYWORDS.test(a.title))
@@ -719,42 +738,104 @@ async function fetchLayoffs() {
         } catch(e) {
             log(`  ✗ ${gq.label} failed: ${e.message}`, "error");
         }
-    }));
+        if (gi < GDELT_QUERIES.length - 1) await new Promise(r => setTimeout(r, 600));
+    }
 
-    // ── Source 2: TechCrunch /tag/layoffs/ (rss2json — works fine for TC) ──
+    // ── Source 2: TechCrunch /tag/layoffs/ — allorigins proxy (no rss2json 10-item cap) ──
     try {
         log("  → TechCrunch layoffs feed...");
-        const data = await fetchJSON(RSS2JSON + encodeURIComponent("https://techcrunch.com/tag/layoffs/feed/"), 10000);
-        if (data.status === "ok" && Array.isArray(data.items)) {
-            const fresh = data.items.filter(i => new Date(i.pubDate) >= cutoff);
-            fresh.forEach(i => all.push({
-                title:  i.title  || "(no title)",
-                url:    i.link   || "#",
-                source: "TechCrunch",
-                date:   i.pubDate || "",
-                desc:   (i.description || "").replace(/<[^>]*>/g, "").trim().slice(0, 220),
-                region: "us", lang: "en",
-            }));
+        let tcItems = null;
+        try {
+            const text = await fetchViaProxy("https://techcrunch.com/tag/layoffs/feed/");
+            tcItems = await parseRSS(text);
+        } catch(proxyErr) {
+            log(`  ⚡ TC proxy failed, trying rss2json...`, "warn");
+            const data = await fetchJSON(RSS2JSON + encodeURIComponent("https://techcrunch.com/tag/layoffs/feed/"), 10000);
+            if (data.status === "ok" && Array.isArray(data.items))
+                tcItems = data.items.map(i => ({ title: i.title, url: i.link, date: i.pubDate, desc: (i.description||"").replace(/<[^>]*>/g,"").trim().slice(0,220) }));
+        }
+        if (tcItems) {
+            const fresh = tcItems.filter(i => i.date && new Date(i.date) >= cutoff);
+            fresh.forEach(i => all.push({ ...i, source: "TechCrunch", region: "us", lang: "en" }));
             log(`  ✓ TechCrunch: ${fresh.length} articles`, fresh.length ? "ok" : "warn");
-        } else throw new Error("bad response");
+        } else throw new Error("no items");
     } catch(e) {
         log(`  ✗ TechCrunch failed: ${e.message}`, "error");
     }
 
-    // ── Source 3: HN Algolia (direct JSON API, no CORS, no key) ──
+    // ── Source 3: HN Algolia (direct JSON API, no key — proxy fallback if network blocks it) ──
+    // Note: query is a single keyword. Multiple words in the HN Algolia query are AND-ed,
+    // which was filtering out nearly every result. LAYOFF_KEYWORDS handles broader matching.
     try {
         log("  → HN Algolia (layoffs)...");
-        const data = await fetchJSON(
-            "https://hn.algolia.com/api/v1/search_by_date?query=layoffs+fired+job+cuts&tags=story&hitsPerPage=50", 10000);
+        const data = await fetchJSONSafe(
+            "https://hn.algolia.com/api/v1/search_by_date?query=layoffs&tags=story&hitsPerPage=100", 10000);
         const fresh = (data.hits || [])
             .filter(h => h.title && h.url && LAYOFF_KEYWORDS.test(h.title) && new Date(h.created_at) >= cutoff);
         fresh.forEach(h => all.push({
             title: h.title, url: h.url, source: "Hacker News",
             date: h.created_at, desc: "", region: "global", lang: "en",
         }));
-        log(`  ✓ HN Algolia: ${fresh.length} stories`, fresh.length ? "ok" : "warn");
+        log(`  ✓ HN Algolia: ${fresh.length} stories (of ${data.hits?.length || 0} hits)`, fresh.length ? "ok" : "warn");
     } catch(e) {
         log(`  ✗ HN Algolia failed: ${e.message}`, "error");
+    }
+
+    // ── Source 4: r/layoffs subreddit (Reddit JSON, proxy fallback — some ISPs block Reddit) ──
+    try {
+        log("  → Reddit r/layoffs...");
+        const data = await fetchJSONSafe(
+            "https://www.reddit.com/r/layoffs/new/.json?limit=50", 10000);
+        const posts = (data?.data?.children || []).map(c => c.data)
+            .filter(p => p.title && !p.stickied && new Date(p.created_utc * 1000) >= cutoff);
+        posts.forEach(p => all.push({
+            title: p.title, url: p.url || ("https://reddit.com" + p.permalink), source: "r/layoffs",
+            date: new Date(p.created_utc * 1000).toISOString(), desc: (p.selftext || "").slice(0, 220),
+            region: "global", lang: "en",
+        }));
+        log(`  ✓ r/layoffs: ${posts.length} posts`, posts.length ? "ok" : "warn");
+    } catch(e) {
+        log(`  ✗ r/layoffs failed: ${e.message}`, "error");
+    }
+
+    // ── Source 6+: Keyword-filtered RSS wide net via allorigins proxy ──
+    // All pass through parseRSS + LAYOFF_KEYWORDS filter. Dedup handles overlap.
+    const LAYOFF_RSS_FEEDS = [
+        { url: "https://news.crunchbase.com/sections/layoffs/feed/", region: "us",     label: "Crunchbase",   prefilter: false },
+        { url: "https://feeds.bbci.co.uk/news/business/rss.xml",     region: "uk",     label: "BBC Business", prefilter: true  },
+        { url: "https://fortune.com/section/finance/feed/",          region: "us",     label: "Fortune",      prefilter: true  },
+    ];
+    for (const feed of LAYOFF_RSS_FEEDS) {
+        try {
+            log(`  → ${feed.label} RSS...`);
+            const text = await fetchViaProxy(feed.url);
+            const items = await parseRSS(text);
+            const fresh = items.filter(i => {
+                if (feed.prefilter && !LAYOFF_KEYWORDS.test(i.title)) return false;
+                return i.date && new Date(i.date) >= cutoff;
+            });
+            fresh.forEach(i => all.push({ ...i, source: feed.label, region: feed.region, lang: "en" }));
+            log(`  ✓ ${feed.label}: ${fresh.length} articles`, fresh.length ? "ok" : "warn");
+        } catch(e) {
+            log(`  ✗ ${feed.label} failed: ${e.message}`, "error");
+        }
+    }
+
+    // ── Source 5: Reddit r/cscareerquestions — layoff/fired threads (proxy fallback) ──
+    try {
+        log("  → Reddit r/cscareerquestions (layoffs)...");
+        const data = await fetchJSONSafe(
+            `https://www.reddit.com/r/cscareerquestions/search.json?q=layoff+fired+laid+off&sort=new&t=month&limit=25&restrict_sr=1`, 10000);
+        const posts = (data?.data?.children || []).map(c => c.data)
+            .filter(p => p.title && LAYOFF_KEYWORDS.test(p.title) && new Date(p.created_utc * 1000) >= cutoff);
+        posts.forEach(p => all.push({
+            title: p.title, url: "https://reddit.com" + p.permalink, source: "r/cscareerquestions",
+            date: new Date(p.created_utc * 1000).toISOString(), desc: (p.selftext || "").slice(0, 220),
+            region: "global", lang: "en",
+        }));
+        log(`  ✓ r/cscareerquestions: ${posts.length} posts`, posts.length ? "ok" : "warn");
+    } catch(e) {
+        log(`  ✗ r/cscareerquestions failed: ${e.message}`, "error");
     }
 
     // Deduplicate: primary = URL, secondary = normalized title fingerprint (catches cross-published articles)
@@ -814,10 +895,10 @@ async function fetchJobs() {
         fetchGreenhouse(all),
     ]);
 
-    // Deduplicate
+    // Deduplicate — include location so same title+company in different cities aren't collapsed
     const seen = new Set();
     all = all.filter(j => {
-        const key = `${j.title}|${j.company}`;
+        const key = j.id || `${j.title}|${j.company}|${j.location || ""}`;
         if (seen.has(key)) return false; seen.add(key); return true;
     });
 
@@ -929,7 +1010,7 @@ async function fetchArbeitnow(out) {
                 company:  j.company_name || "Unknown",
                 source:   "Arbeitnow",
                 url:      j.url    || `https://www.arbeitnow.com/jobs/${j.slug}`,
-                type:     j.remote ? "full_time" : "full_time",
+                type:     j.job_type || "full_time",
                 category: j.tags  ? j.tags.join(", ") : "",
                 salary:   extractSalary("", rawDesc),
                 desc:     rawDesc,
@@ -947,7 +1028,7 @@ async function fetchArbeitnow(out) {
 
 function extractSalary(raw, desc) {
     if (raw) return String(raw).slice(0, 50);
-    const m = desc.match(/\$[\d,]+(?:k)?(?:\s*[-–]\s*\$[\d,]+(?:k)?)?(?:\s*\/\s*(?:hr|hour|yr|year|mo))?/i);
+    const m = desc.match(/[\$£€][\d,]+(?:k)?(?:\s*[-–]\s*[\$£€]?[\d,]+(?:k)?)?(?:\s*\/\s*(?:hr|hour|yr|year|mo))?/i);
     return m ? m[0] : "";
 }
 
@@ -1028,7 +1109,9 @@ async function fetchGreenhouse(out) {
                 });
                 total++;
             });
-        } catch {}
+        } catch(e) {
+            log(`  ✗ Greenhouse/${slug}: ${e.message}`, "warn");
+        }
     }));
     log(`  ✓ Greenhouse: ${total} jobs from ${GH_COMPANIES.length} companies`, total ? "ok" : "warn");
 }
@@ -1065,38 +1148,6 @@ async function fetchJobicy(out) {
         log(`  ✓ Jobicy: ${count} active jobs`, "ok");
     } catch(e) {
         log(`  ✗ Jobicy failed: ${e.message}`, "error");
-    }
-}
-
-async function fetchHimalayas(out) {
-    try {
-        log("  → Fetching Himalayas API...");
-        const data = await fetchJSON("https://himalayas.app/jobs/api?qty=100", 14000);
-        if (!data || !Array.isArray(data.jobs)) throw new Error("No jobs array");
-        const cutoff = Date.now() - 45 * 86400000;
-        let count = 0;
-        data.jobs.forEach(j => {
-            const d = j.createdAt ? new Date(j.createdAt) : null;
-            if (d && d < cutoff) return;
-            out.push({
-                id:       `him-${j.id || j.slug}`,
-                title:    j.title || "(no title)",
-                company:  j.companyName || j.company?.name || "Unknown",
-                source:   "Himalayas",
-                url:      j.applicationLink || j.url || "#",
-                type:     "full_time",
-                category: (j.categories || []).join(", "),
-                salary:   j.salary || extractSalary("", j.description || ""),
-                desc:     (j.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220),
-                date:     j.createdAt || j.pubDate || "",
-                location: "remote",
-                lang:     "en",
-            });
-            count++;
-        });
-        log(`  ✓ Himalayas: ${count} active jobs`, "ok");
-    } catch(e) {
-        log(`  ✗ Himalayas failed: ${e.message}`, "error");
     }
 }
 
@@ -1275,7 +1326,10 @@ function renderJobs(items) {
 async function refreshAll() {
     timerEl.textContent = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     log("══════════ NEW SCAN INITIATED ══════════", "ok");
-    await Promise.allSettled([fetchLayoffs(), fetchJobs()]);
+    // Serialize: layoffs first, then jobs. Reduces concurrent network pressure so
+    // GDELT's 14s timeout doesn't fire while 20+ job-board requests are in flight.
+    await fetchLayoffs();
+    await fetchJobs();
     saveCache();
     log("══════════ SCAN COMPLETE ══════════");
 }
