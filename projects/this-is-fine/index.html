@@ -15,6 +15,8 @@
             --text-main: #fff5f0;
             --text-dim: #b3a099;
             --accent-blue: #5dd6ff;
+            --jobs-green: #3ddc84;
+            --jobs-green-dim: rgba(61, 220, 132, 0.18);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -210,6 +212,52 @@
         .feed-list::-webkit-scrollbar { width: 3px; }
         .feed-list::-webkit-scrollbar-thumb { background: rgba(255,100,0,0.3); border-radius: 10px; }
 
+        /* ===================== JOBS PANEL — GREEN THEME ===================== */
+        .panel--jobs {
+            border-color: rgba(61, 220, 132, 0.22);
+        }
+        .panel--jobs .panel-header {
+            border-bottom-color: rgba(61, 220, 132, 0.2);
+        }
+        .panel--jobs .panel-title {
+            color: var(--jobs-green);
+        }
+        .panel--jobs .filter-select,
+        .panel--jobs .filter-input {
+            border-color: rgba(61, 220, 132, 0.28);
+        }
+        .panel--jobs .filter-select:focus,
+        .panel--jobs .filter-input:focus {
+            border-color: var(--jobs-green);
+        }
+        .panel--jobs .filter-select option { background: #001a0d; }
+        .panel--jobs .filter-btn {
+            background: rgba(61, 220, 132, 0.15);
+            border-color: rgba(61, 220, 132, 0.4);
+            color: var(--jobs-green);
+        }
+        .panel--jobs .filter-btn:hover {
+            background: rgba(61, 220, 132, 0.35);
+            color: #fff;
+        }
+        .panel--jobs .item-card:hover {
+            background: rgba(61, 220, 132, 0.07);
+            border-color: rgba(61, 220, 132, 0.45);
+        }
+        .panel--jobs .item-card::before {
+            background: linear-gradient(to bottom, var(--jobs-green), rgba(61, 220, 132, 0.5));
+        }
+        .panel--jobs .card-source {
+            color: var(--jobs-green);
+        }
+        .panel--jobs .tag-type {
+            background: rgba(61, 220, 132, 0.12);
+            color: var(--jobs-green);
+        }
+        .panel--jobs .feed-list::-webkit-scrollbar-thumb {
+            background: rgba(61, 220, 132, 0.3);
+        }
+
         /* log entries — shared by .log-bar */
         .log-entry { line-height: 1.6; padding: 2px 0; display: block; }
 
@@ -276,6 +324,31 @@
             color: var(--text-dim);
             white-space: nowrap;
         }
+
+        .card-badge-forum {
+            display: inline-block;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            padding: 1px 5px;
+            margin-left: 6px;
+            border-radius: 3px;
+            background: rgba(93, 214, 255, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(93, 214, 255, 0.35);
+            vertical-align: middle;
+        }
+
+        .filter-checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 10px;
+            color: var(--text-dim);
+            cursor: pointer;
+            user-select: none;
+        }
+        .filter-checkbox input { cursor: pointer; accent-color: var(--fire-orange); }
 
         /* Right body: title + desc + pay + tags */
         .card-body {
@@ -388,6 +461,7 @@
                 <option value="de">German</option>
                 <option value="fr">French</option>
             </select>
+            <label class="filter-checkbox"><input id="cuts-hide-forum" type="checkbox" checked onchange="applyLayoffFilters()"> Hide forum posts</label>
             <button class="filter-btn" onclick="resetLayoffFilters()">RESET</button>
         </div>
         <div id="cuts-count" style="font-size:10px;color:var(--text-dim);flex-shrink:0;"></div>
@@ -397,7 +471,7 @@
     </div>
 
     <!-- JOBS PANEL -->
-    <div class="panel">
+    <div class="panel panel--jobs">
         <div class="panel-header">
             <div class="panel-title">💼 OPPORTUNITIES</div>
         </div>
@@ -678,7 +752,7 @@ async function parseRSSFull(text, defaultRegion = "global", defaultLang = "en") 
 
 
 // ================================================
-// LAYOFFS — GDELT + TechCrunch + HN Algolia
+// LAYOFFS — Google News + TechCrunch + HN Algolia + RSS
 // ================================================
 const LAYOFF_KEYWORDS = /layoff|laid.?off|job.?cut|fired|redundan|downsiz|retrench|workforce.?reduction|mass.?terminat|position.?eliminat|headcount/i;
 const RSS2JSON = "https://api.rss2json.com/v1/api.json?rss_url=";
@@ -697,48 +771,29 @@ async function fetchLayoffs() {
     let all = [];
     const cutoff = Date.now() - CUTOFF_DAYS * 86400000;
 
-    // ── Source 1: GDELT DOC 2.0 (direct JSON, no proxy, no key, 75 results/query) ──
-    // Stagger sequentially with 600ms delay — GDELT burst-rate-limits parallel requests.
-    const GDELT_QUERIES = [
-        { label: "GDELT — layoffs/fired",     q: "layoffs fired employees" },
-        { label: "GDELT — job cuts",          q: "\"job cuts\" OR \"laid off\" OR \"workforce reduction\"" },
-        { label: "GDELT — tech mass layoffs", q: "tech company layoffs 2025 OR 2026" },
+    // ── Source 1: Google News RSS (replaces GDELT — aggregates Reuters/AP/Bloomberg/etc) ──
+    // Uses parseRSSFull which extracts real article URLs and publisher names from Google's
+    // <description> HTML, skipping the news.google.com/rss/articles/CBMi... redirect links.
+    // when:${CUTOFF_DAYS}d scopes results to our rolling window.
+    const GOOGLE_NEWS_QUERIES = [
+        { label: "Google News — layoffs",       url: `https://news.google.com/rss/search?q=layoffs+when:${CUTOFF_DAYS}d&hl=en-US&gl=US&ceid=US:en`,                                                              region: "us"     },
+        { label: "Google News — job cuts",      url: `https://news.google.com/rss/search?q=%22job+cuts%22+OR+%22laid+off%22+OR+%22workforce+reduction%22+when:${CUTOFF_DAYS}d&hl=en-US&gl=US&ceid=US:en`,      region: "us"     },
+        { label: "Google News — tech layoffs",  url: `https://news.google.com/rss/search?q=tech+layoffs+OR+%22cutting+jobs%22+OR+downsizing+when:${CUTOFF_DAYS}d&hl=en-US&gl=US&ceid=US:en`,                  region: "us"     },
+        { label: "Google News — EU redundancies", url: `https://news.google.com/rss/search?q=layoffs+OR+redundancies+OR+%22job+cuts%22+when:${CUTOFF_DAYS}d&hl=en-GB&gl=GB&ceid=GB:en`,                     region: "global" },
     ];
-    for (let gi = 0; gi < GDELT_QUERIES.length; gi++) {
-        const gq = GDELT_QUERIES[gi];
+    for (let gi = 0; gi < GOOGLE_NEWS_QUERIES.length; gi++) {
+        const gq = GOOGLE_NEWS_QUERIES[gi];
         try {
             log(`  → ${gq.label}...`);
-            const params = new URLSearchParams({
-                query:      gq.q,
-                mode:       "artlist",
-                maxrecords: "75",
-                format:     "json",
-                sourcelang: "english",
-                timespan:   `${CUTOFF_DAYS}d`,
-            });
-            const data = await fetchJSONSafe(`${GDELT_BASE}?${params}`, 20000);
-            if (!Array.isArray(data?.articles)) throw new Error("No articles array");
-            const mapped = data.articles
-                .filter(a => LAYOFF_KEYWORDS.test(a.title))
-                .map(a => {
-                    const iso = gdeltDate(a.seendate);
-                    return {
-                        title:  a.title  || "(no title)",
-                        url:    a.url    || "#",
-                        source: a.domain || "GDELT",
-                        date:   iso,
-                        desc:   "",
-                        region: (a.sourcecountry === "United States" || !a.sourcecountry) ? "us" : "global",
-                        lang:   "en",
-                    };
-                })
-                .filter(a => a.date && new Date(a.date) >= cutoff);
-            log(`  ✓ ${gq.label}: ${mapped.length} articles`, mapped.length ? "ok" : "warn");
-            mapped.forEach(i => all.push(i));
+            const text  = await fetchViaProxy(gq.url);
+            const items = await parseRSSFull(text, gq.region, "en");
+            const fresh = items.filter(i => LAYOFF_KEYWORDS.test(i.title) && i.date && new Date(i.date) >= cutoff);
+            fresh.forEach(i => all.push({ ...i, type: "news" }));
+            log(`  ✓ ${gq.label}: ${fresh.length} articles`, fresh.length ? "ok" : "warn");
         } catch(e) {
             log(`  ✗ ${gq.label} failed: ${e.message}`, "error");
         }
-        if (gi < GDELT_QUERIES.length - 1) await new Promise(r => setTimeout(r, 600));
+        if (gi < GOOGLE_NEWS_QUERIES.length - 1) await new Promise(r => setTimeout(r, 500));
     }
 
     // ── Source 2: TechCrunch /tag/layoffs/ — allorigins proxy (no rss2json 10-item cap) ──
@@ -756,54 +811,43 @@ async function fetchLayoffs() {
         }
         if (tcItems) {
             const fresh = tcItems.filter(i => i.date && new Date(i.date) >= cutoff);
-            fresh.forEach(i => all.push({ ...i, source: "TechCrunch", region: "us", lang: "en" }));
+            fresh.forEach(i => all.push({ ...i, source: "TechCrunch", region: "us", lang: "en", type: "news" }));
             log(`  ✓ TechCrunch: ${fresh.length} articles`, fresh.length ? "ok" : "warn");
         } else throw new Error("no items");
     } catch(e) {
         log(`  ✗ TechCrunch failed: ${e.message}`, "error");
     }
 
-    // ── Source 3: HN Algolia (direct JSON API, no key — proxy fallback if network blocks it) ──
-    // Note: query is a single keyword. Multiple words in the HN Algolia query are AND-ed,
-    // which was filtering out nearly every result. LAYOFF_KEYWORDS handles broader matching.
+    // ── Source 3: HN Algolia — link-post submissions only (no Ask HN / forum threads) ──
+    // query=layoffs is a single keyword so Algolia doesn't AND-filter too aggressively.
+    // Extra domain filter keeps only recognised news outlets or posts with headcount numbers.
     try {
         log("  → HN Algolia (layoffs)...");
         const data = await fetchJSONSafe(
             "https://hn.algolia.com/api/v1/search_by_date?query=layoffs&tags=story&hitsPerPage=100", 10000);
-        const fresh = (data.hits || [])
-            .filter(h => h.title && h.url && LAYOFF_KEYWORDS.test(h.title) && new Date(h.created_at) >= cutoff);
+        const NEWS_DOMAINS = /techcrunch|reuters|bloomberg|wsj\.com|ft\.com|theverge|cnbc|bbc\.|fortune\.com|forbes|arstechnica|engadget|venturebeat|crunchbase|apnews|axios|wired\.com|businessinsider|theregister/i;
+        const fresh = (data.hits || []).filter(h =>
+            h.title && h.url && LAYOFF_KEYWORDS.test(h.title) &&
+            new Date(h.created_at) >= cutoff &&
+            (NEWS_DOMAINS.test(h.url) || /\b\d[\d,]*\s*(?:employees|workers|jobs|positions|staff|people)\b/i.test(h.title))
+        );
         fresh.forEach(h => all.push({
             title: h.title, url: h.url, source: "Hacker News",
-            date: h.created_at, desc: "", region: "global", lang: "en",
+            date: h.created_at, desc: "", region: "global", lang: "en", type: "news",
         }));
         log(`  ✓ HN Algolia: ${fresh.length} stories (of ${data.hits?.length || 0} hits)`, fresh.length ? "ok" : "warn");
     } catch(e) {
         log(`  ✗ HN Algolia failed: ${e.message}`, "error");
     }
 
-    // ── Source 4: r/layoffs subreddit (Reddit JSON, proxy fallback — some ISPs block Reddit) ──
-    try {
-        log("  → Reddit r/layoffs...");
-        const data = await fetchJSONSafe(
-            "https://www.reddit.com/r/layoffs/new/.json?limit=50", 10000);
-        const posts = (data?.data?.children || []).map(c => c.data)
-            .filter(p => p.title && !p.stickied && new Date(p.created_utc * 1000) >= cutoff);
-        posts.forEach(p => all.push({
-            title: p.title, url: p.url || ("https://reddit.com" + p.permalink), source: "r/layoffs",
-            date: new Date(p.created_utc * 1000).toISOString(), desc: (p.selftext || "").slice(0, 220),
-            region: "global", lang: "en",
-        }));
-        log(`  ✓ r/layoffs: ${posts.length} posts`, posts.length ? "ok" : "warn");
-    } catch(e) {
-        log(`  ✗ r/layoffs failed: ${e.message}`, "error");
-    }
-
-    // ── Source 6+: Keyword-filtered RSS wide net via allorigins proxy ──
-    // All pass through parseRSS + LAYOFF_KEYWORDS filter. Dedup handles overlap.
+    // ── Source 4+: Keyword-filtered RSS wide net — dedicated tech journalism outlets ──
     const LAYOFF_RSS_FEEDS = [
         { url: "https://news.crunchbase.com/sections/layoffs/feed/", region: "us",     label: "Crunchbase",   prefilter: false },
         { url: "https://feeds.bbci.co.uk/news/business/rss.xml",     region: "uk",     label: "BBC Business", prefilter: true  },
         { url: "https://fortune.com/section/finance/feed/",          region: "us",     label: "Fortune",      prefilter: true  },
+        { url: "https://www.theverge.com/rss/index.xml",             region: "us",     label: "The Verge",    prefilter: true  },
+        { url: "https://arstechnica.com/feed/",                      region: "us",     label: "Ars Technica", prefilter: true  },
+        { url: "https://www.engadget.com/rss.xml",                   region: "us",     label: "Engadget",     prefilter: true  },
     ];
     for (const feed of LAYOFF_RSS_FEEDS) {
         try {
@@ -814,28 +858,11 @@ async function fetchLayoffs() {
                 if (feed.prefilter && !LAYOFF_KEYWORDS.test(i.title)) return false;
                 return i.date && new Date(i.date) >= cutoff;
             });
-            fresh.forEach(i => all.push({ ...i, source: feed.label, region: feed.region, lang: "en" }));
+            fresh.forEach(i => all.push({ ...i, source: feed.label, region: feed.region, lang: "en", type: "news" }));
             log(`  ✓ ${feed.label}: ${fresh.length} articles`, fresh.length ? "ok" : "warn");
         } catch(e) {
             log(`  ✗ ${feed.label} failed: ${e.message}`, "error");
         }
-    }
-
-    // ── Source 5: Reddit r/cscareerquestions — layoff/fired threads (proxy fallback) ──
-    try {
-        log("  → Reddit r/cscareerquestions (layoffs)...");
-        const data = await fetchJSONSafe(
-            `https://www.reddit.com/r/cscareerquestions/search.json?q=layoff+fired+laid+off&sort=new&t=month&limit=25&restrict_sr=1`, 10000);
-        const posts = (data?.data?.children || []).map(c => c.data)
-            .filter(p => p.title && LAYOFF_KEYWORDS.test(p.title) && new Date(p.created_utc * 1000) >= cutoff);
-        posts.forEach(p => all.push({
-            title: p.title, url: "https://reddit.com" + p.permalink, source: "r/cscareerquestions",
-            date: new Date(p.created_utc * 1000).toISOString(), desc: (p.selftext || "").slice(0, 220),
-            region: "global", lang: "en",
-        }));
-        log(`  ✓ r/cscareerquestions: ${posts.length} posts`, posts.length ? "ok" : "warn");
-    } catch(e) {
-        log(`  ✗ r/cscareerquestions failed: ${e.message}`, "error");
     }
 
     // Deduplicate: primary = URL, secondary = normalized title fingerprint (catches cross-published articles)
@@ -869,7 +896,7 @@ function renderLayoffs(items) {
                 <div class="card-date">${fmtDate(i.date)}</div>
             </div>
             <div class="card-body">
-                <div class="card-title">${esc(i.title)}</div>
+                <div class="card-title">${esc(i.title)}${i.type === "forum" ? `<span class="card-badge-forum">FORUM</span>` : ""}</div>
                 ${i.desc ? `<div class="card-desc">${esc(i.desc)}</div>` : ""}
             </div>
         </a>
@@ -1260,11 +1287,13 @@ function resetFilters() {
 // FILTERS — CUTS
 // ================================================
 function applyLayoffFilters() {
-    const kw      = document.getElementById("cuts-keyword").value.toLowerCase().trim();
-    const country = document.getElementById("cuts-country").value.toLowerCase();
-    const lang    = document.getElementById("cuts-lang").value.toLowerCase();
+    const kw        = document.getElementById("cuts-keyword").value.toLowerCase().trim();
+    const country   = document.getElementById("cuts-country").value.toLowerCase();
+    const lang      = document.getElementById("cuts-lang").value.toLowerCase();
+    const hideForum = document.getElementById("cuts-hide-forum").checked;
 
     let filtered = state.layoffs.filter(i => {
+        if (hideForum && i.type === "forum") return false;
         if (kw && !i.title.toLowerCase().includes(kw)) return false;
         if (country) {
             // Items tagged "global" pass all region filters; otherwise must match
@@ -1287,6 +1316,7 @@ function applyLayoffFilters() {
 function resetLayoffFilters() {
     ["cuts-keyword","cuts-country","cuts-lang"]
         .forEach(id => document.getElementById(id).value = "");
+    document.getElementById("cuts-hide-forum").checked = true;
     applyLayoffFilters();
 }
 
