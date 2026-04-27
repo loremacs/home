@@ -8,9 +8,8 @@ to **prompt, direct, and iterate**: to turn an idea into something real by
 working with AI as a creative partner. The experiments here reflect
 imagination and curiosity more than any particular technical skill.
 
-The landing page is an interactive 3D star-map. Each node floating in the
-sphere is one experiment. Drag to rotate it. Scroll to dive deeper into
-the field. Nodes you visit drift toward the front over time.
+The landing page is an interactive 3D star-map. Each card floating in the sphere is one experiment. Drag to rotate it. Scroll to dive deeper into
+the field. Cards you visit drift toward the front over time.
 
 ---
 
@@ -24,7 +23,8 @@ the field. Nodes you visit drift toward the front over time.
 | [Newsmap](projects/newsmap/) | Open world-intel dashboard: 2D/3D map, multi-source news feed, live event overlays (quakes, wildfires, ISS, aircraft), and a live-channel video wall. No signup, no paywall. |
 | [Prism Break](projects/gemini-prism-break/) | Light-refracting neon arcade game with glassmorphic UI and particle physics. Created by Gemini3Flash. |
 | [ThisIsFine](projects/this-is-fine/) | Real-time layoffs news and tech job tracker with a 5-minute polling timer and custom fire-themed UI. |
-| *(+25 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
+| [Logic Lab](projects/logic-lab/) | Gate-puzzle game: drag IC components onto a PCB grid, wire them up, and satisfy truth table test cases to advance through 10 levels. |
+| *(+24 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
 
 See [`LOG.md`](LOG.md) for a running history of what's been added and when.
 
