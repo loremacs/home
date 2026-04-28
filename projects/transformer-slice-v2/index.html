@@ -58,7 +58,7 @@ header {
 /* ── Chain strip ─────────────────────────────────────────────── */
 .chain-strip {
   flex-shrink: 0;
-  height: 168px;
+  height: 200px;
   background: #080e1a;
   border-bottom: 1px solid var(--border);
   position: relative;
@@ -998,152 +998,206 @@ function pickSample() {
 
 /* ── Neural chain strip ─────────────────────────────────────────────────── */
 const STEP_COLORS = ["#ffd166", "#66d9ff", "#b28cff", "#7dffe1", "#ff9f66", "#ff6b9a"];
-// 6 columns, 4 nodes each. cx = column centre x, ny = node y positions
 const COL_CX  = [78, 240, 402, 564, 726, 888];
-const NODE_NY = [32, 62, 98, 128]; // 4 rows inside 168px strip (top labels at y~14)
+const NODE_NY = [50, 84, 118, 152]; // 4 rows; col labels above at y≤22, node labels below at +12
 
-/* Compute per-column, per-node brightness weights for the current state */
-function columnWeights() {
+/* Build per-column node descriptors: {label, w}.
+   Each node represents a specific named entity — not an abstract unit. */
+function buildColNodes() {
   const toks = allTokens();
   const norm = normalizedAttention();
   const probs = toks.length ? probabilities() : [];
   const ctx = contextVector();
+  const attnMean = norm.length ? norm.reduce((a,b)=>a+b,0)/norm.length : 0.25;
+  const tokStart = Math.max(0, toks.length - 4);
 
-  // col 0 — Tokenize: last 4 tokens, weight = attention
+  // col 0 — Tokenize: last 4 context tokens, weight = their attention weight
   const c0 = NODE_NY.map((_, ni) => {
-    const ti = Math.max(0, toks.length - 4) + ni;
-    return ti < toks.length ? (norm[ti] || 0) : 0;
+    const ti = tokStart + ni;
+    return ti < toks.length
+      ? { label: toks[ti].slice(0,7), w: norm[ti] || 0.08 }
+      : { label: "—", w: 0.02 };
   });
 
-  // col 1 — Embed: feature dimensions weighted by context vector
-  const c1 = NODE_NY.map((_, ni) => ni < 5 ? clamp(ctx[ni], 0, 1) : 0);
+  // col 1 — Embed: 4 feature dimensions, weight = blended context vector value
+  const c1 = ["obj","act","plc","lgc"].map((f, j) => ({ label: f, w: clamp(ctx[j], 0.06, 1) }));
 
-  // col 2 — Attend: Q/K/V/softmax — weight by how active each concept is
-  const attnActivity = norm.reduce((a, b) => a + b, 0) / Math.max(1, norm.length);
-  const c2 = [attnActivity, attnActivity * .85, attnActivity * .7, attnActivity * .55];
+  // col 2 — Attend: Q / K / V / out — weight derived from attention activity
+  const c2 = [
+    { label: "Q",   w: clamp(attnMean * 1.00, 0.06, 1) },
+    { label: "K",   w: clamp(attnMean * 0.90, 0.06, 1) },
+    { label: "V",   w: clamp(attnMean * 0.85, 0.06, 1) },
+    { label: "out", w: clamp(attnMean * 0.75, 0.06, 1) }
+  ];
 
-  // col 3 — Mix: feature activations after FFN
-  const c3 = NODE_NY.map((_, ni) => ni < 5 ? clamp(ctx[ni] * 1.1, 0, 1) : 0);
+  // col 3 — FFN: expand → activate → contract → +residual
+  const c3 = [
+    { label: "exp",  w: clamp(ctx[0] * 1.2, 0.06, 1) },
+    { label: "actv", w: clamp(ctx[1] * 1.1, 0.06, 1) },
+    { label: "ctr",  w: clamp(ctx[2] * 1.0, 0.06, 1) },
+    { label: "+res", w: clamp(ctx[3] * 0.9, 0.06, 1) }
+  ];
 
-  // col 4 — Score: top logit activations
-  const c4 = NODE_NY.map((_, ni) => probs[ni] ? probs[ni].prob * 3.5 : 0.1);
+  // col 4 — Score: top-4 candidate tokens by logit score, weight = probability
+  const c4 = NODE_NY.map((_, ni) => ({
+    label: probs[ni] ? probs[ni].token.slice(0,7) : "—",
+    w: probs[ni] ? clamp(probs[ni].prob * 2.2, 0.06, 1) : 0.04
+  }));
 
-  // col 5 — Sample: top candidate probabilities
-  const c5 = NODE_NY.map((_, ni) => probs[ni] ? probs[ni].prob * 3.5 : 0.1);
+  // col 5 — Sample: same tokens — the distribution we draw from
+  const c5 = NODE_NY.map((_, ni) => ({
+    label: probs[ni] ? probs[ni].token.slice(0,7) : "—",
+    w: probs[ni] ? clamp(probs[ni].prob * 2.2, 0.06, 1) : 0.04
+  }));
 
   return [c0, c1, c2, c3, c4, c5];
 }
 
-function renderChainStrip() {
-  const s = state.step - 1; // 0-indexed active column
-  const wts = columnWeights();
-  const loopActive = state.loopCount > 0;
-  const svgH = 168;
-  const vbH = 170;
+/* Spread raw weights so the full 0→1 range is used within each column.
+   `base` keeps even the lowest node partially visible. */
+function spreadWeights(nodes, base = 0.15) {
+  const ws = nodes.map(n => n.w);
+  const maxW = Math.max(...ws, 0.01);
+  const minW = Math.min(...ws, 0);
+  const range = maxW - minW;
+  return nodes.map(n => ({
+    ...n,
+    sw: range > 0.02 ? base + ((n.w - minW) / range) * (1 - base) : 0.5
+  }));
+}
 
-  // Stage labels
-  const labelNames = ["Tokenize", "Embed", "Attend", "Mix / FFN", "Score", "Sample"];
-  const labelDescs = ["split text", "→ vectors", "Q·K·V", "feed-fwd", "logits", "pick token"];
+/* Semantic connection weight between node ni (col ci) → node nj (col ci+1).
+   - tok→embed  : actual feature value of that token for that dimension (real vocab data)
+   - mix→score  : feature value of the candidate token × FFN node activity (live on dial change)
+   - all others : geometric mean of spread weights */
+function connWeight(ci, ni, nj, cols) {
+  if (ci === 0) {
+    // Tokenize → Embed: how much does token[ni] score on feature[nj]?
+    const toks = allTokens();
+    const ti = Math.max(0, toks.length - 4) + ni;
+    const vec = ti < toks.length ? tokenVector(toks[ti]) : [0, 0, 0, 0, 0];
+    return clamp(vec[nj] || 0, 0.02, 1);
+  }
+  if (ci === 3) {
+    // Mix/FFN → Score: feature activation × FFN node activity × candidate probability
+    // Multiplying by probability ensures the highest-ranked candidate anchors the dominant path.
+    const probs = allTokens().length ? probabilities() : [];
+    const cand = probs[nj];
+    if (!cand) return 0.05;
+    const cv = tokenVector(cand.token);
+    return clamp(cv[ni] * cols[3][ni].sw * (0.25 + cand.p * 0.75), 0.03, 1);
+  }
+  return Math.sqrt(cols[ci][ni].sw * cols[ci + 1][nj].sw);
+}
+
+function renderChainStrip() {
+  const s = state.step - 1;
+  const loopActive = state.loopCount > 0;
+  const vbH = 175;
+  const rawCols = buildColNodes();
+  const cols = rawCols.map(c => spreadWeights(c));
+  const colNames = ["Tokenize","Embed","Attend","Mix / FFN","Score","Sample"];
 
   let svg = `<svg viewBox="0 0 1000 ${vbH}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <marker id="ah" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-      <polygon points="0 0,6 3,0 6" fill="#3a4f70" opacity=".8"/>
+    <marker id="ah" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+      <polygon points="0 0,5 2.5,0 5" fill="#2a3850" opacity=".9"/>
     </marker>
-    <marker id="ah-hot" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-      <polygon points="0 0,6 3,0 6" fill="#ffffff" opacity=".9"/>
+    <marker id="ah-hot" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+      <polygon points="0 0,5 2.5,0 5" fill="#ffffffcc"/>
     </marker>
     <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feGaussianBlur stdDeviation="4" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <filter id="glow-sm" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>`;
 
-  // ── inter-column connection lines ────────────────────────────────────────
+  // ── connection lines ──────────────────────────────────────────────────────
   for (let ci = 0; ci < 5; ci++) {
     const x1 = COL_CX[ci];
     const x2 = COL_CX[ci + 1];
-    const colDone = ci < s;
-    const colActive = ci === s - 1 || ci === s;  // lines entering or leaving active col
     const pathColor = STEP_COLORS[ci + 1];
+    const colDone   = ci < s;
+    const colActive = ci === s - 1 || ci === s;
     const id = `cl${ci+1}${ci+2}`;
+    let domNi = 0, domNj = 0, domCW = -1;
 
-    // Connect each node in ci to each node in ci+1 with weight-based opacity
+    // All-to-all mesh — opacity and width driven by semantic connWeight
     for (let ni = 0; ni < 4; ni++) {
       for (let nj = 0; nj < 4; nj++) {
-        const w = colActive
-          ? Math.sqrt(wts[ci][ni] * wts[ci+1][nj])
-          : (colDone ? 0.18 : 0.05);
-        const opacity = colDone ? clamp(w + 0.12, 0.08, 0.55) : clamp(w, 0.04, colActive ? 0.85 : 0.09);
-        const sw = colActive ? clamp(w * 3, 0.4, 2.5) : 0.6;
-        const hot = colActive && opacity > 0.45;
+        const cw = connWeight(ci, ni, nj, cols);
+        const baseOp = colActive ? 0.04 : (colDone ? 0.03 : 0.015);
+        const op  = clamp(baseOp + cw * (colActive ? 0.68 : (colDone ? 0.32 : 0.06)), 0.015, colActive ? 0.82 : 0.48);
+        const sw  = colActive ? clamp(0.4 + cw * 2.4, 0.4, 2.6) : (colDone ? clamp(0.3 + cw * 1.0, 0.3, 1.2) : 0.3);
         svg += `<line x1="${x1+8}" y1="${NODE_NY[ni]}" x2="${x2-8}" y2="${NODE_NY[nj]}"
-          stroke="${colDone ? pathColor : (colActive ? pathColor : '#2a3550')}"
-          stroke-width="${sw}" stroke-opacity="${opacity.toFixed(2)}"
-          ${hot ? `filter="url(#glow-sm)" marker-end="url(#ah-hot)"` : `marker-end="url(#ah)"`}/>`;
+          stroke="${colDone || colActive ? pathColor : '#1e2d42'}"
+          stroke-width="${sw.toFixed(2)}" stroke-opacity="${op.toFixed(2)}"
+          marker-end="url(#ah)"/>`;
+        if (cw > domCW) { domCW = cw; domNi = ni; domNj = nj; }
       }
     }
-    // Bright "main path" line on top (bold dominant route)
-    if (colDone || colActive) {
-      const ni = wts[ci].indexOf(Math.max(...wts[ci]));
-      const nj = wts[ci+1].indexOf(Math.max(...wts[ci+1]));
-      const op = colActive ? 0.9 : 0.5;
-      svg += `<line id="${id}" class="cl" x1="${x1+8}" y1="${NODE_NY[ni]}" x2="${x2-8}" y2="${NODE_NY[nj]}"
-        stroke="${pathColor}" stroke-width="${colActive ? 2.8 : 1.8}" stroke-opacity="${op}"
-        filter="${colActive ? 'url(#glow-sm)' : ''}" marker-end="url(#ah-hot)"/>`;
-    } else {
-      svg += `<line id="${id}" class="cl" x1="${x1+8}" y1="${NODE_NY[1]}" x2="${x2-8}" y2="${NODE_NY[1]}"
-        stroke="#2a3550" stroke-width="0.8" stroke-opacity="0.2" marker-end="url(#ah)"/>`;
-    }
+
+    // Dominant path — bright, thick, glowing on active segment
+    const domOp = colActive ? 0.96 : (colDone ? 0.62 : 0.18);
+    const domSw = colActive ? 2.8 : (colDone ? 1.6 : 0.7);
+    svg += `<line id="${id}" class="cl"
+      x1="${x1+7}" y1="${NODE_NY[domNi]}" x2="${x2-7}" y2="${NODE_NY[domNj]}"
+      stroke="${colDone || colActive ? pathColor : '#2a3550'}"
+      stroke-width="${domSw}" stroke-opacity="${domOp}"
+      ${colActive ? 'filter="url(#glow-sm)"' : ''}
+      marker-end="url(#ah-hot)"/>`;
   }
 
-  // ── loop-back path (Sample → Attend) ─────────────────────────────────────
-  const lx1 = COL_CX[5] + 8;
-  const lx2 = COL_CX[2] - 8;
-  const loopNi = wts[5].indexOf(Math.max(...wts[5]));
-  const loopNj = wts[2].indexOf(Math.max(...wts[2]));
-  const ly1 = NODE_NY[loopNi];
-  const ly2 = NODE_NY[loopNj];
+  // ── loop-back arc (Sample → Attend) ──────────────────────────────────────
+  const lx1 = COL_CX[5] + 7, lx2 = COL_CX[2] - 7;
+  const loopNi = cols[5].reduce((b,n,i) => n.sw > cols[5][b].sw ? i : b, 0);
+  const loopNj = cols[2].reduce((b,n,i) => n.sw > cols[2][b].sw ? i : b, 0);
   svg += `<path id="cl63" class="cl" fill="none"
-    d="M${lx1},${ly1} C${lx1+45},${ly1} ${lx1+55},${vbH-8} ${(lx1+lx2)/2},${vbH-8} C${lx2-55},${vbH-8} ${lx2-45},${ly2} ${lx2},${ly2}"
+    d="M${lx1},${NODE_NY[loopNi]} C${lx1+50},${NODE_NY[loopNi]} ${lx1+60},${vbH-4} ${(lx1+lx2)/2},${vbH-4} C${lx2-60},${vbH-4} ${lx2-50},${NODE_NY[loopNj]} ${lx2},${NODE_NY[loopNj]}"
     stroke="${loopActive ? '#b28cff' : '#1e2d48'}"
-    stroke-width="${loopActive ? 2 : 1}" stroke-opacity="${loopActive ? .7 : .2}"
+    stroke-width="${loopActive ? 2 : 0.8}" stroke-opacity="${loopActive ? .72 : .18}"
     stroke-dasharray="6 4"
     ${loopActive ? 'filter="url(#glow-sm)"' : ''}
     marker-end="${loopActive ? 'url(#ah-hot)' : 'url(#ah)'}"/>`;
 
-  // ── nodes ────────────────────────────────────────────────────────────────
+  // ── nodes + labels ────────────────────────────────────────────────────────
   for (let ci = 0; ci < 6; ci++) {
     const cx = COL_CX[ci];
     const color = STEP_COLORS[ci];
     const isActive = ci === s;
-    const isDone = ci < s;
-    const baseOpacity = isActive ? 1 : (isDone ? 0.65 : 0.22);
+    const isDone   = ci < s;
 
-    // Column label
-    svg += `<text x="${cx}" y="14" text-anchor="middle" font-size="10" font-weight="700"
-      fill="${isActive ? color : (isDone ? color + 'bb' : '#3d4f6a')}"
+    svg += `<text x="${cx}" y="18" text-anchor="middle" font-size="13" font-weight="700"
+      fill="${isActive ? color : (isDone ? color+'cc' : '#3a506a')}"
       font-family="system-ui,sans-serif" style="cursor:pointer" onclick="goToStep(${ci+1})"
-    >${labelNames[ci]}</text>`;
-    svg += `<text x="${cx}" y="24" text-anchor="middle" font-size="8"
-      fill="${isActive ? color + 'cc' : '#2a3a55'}"
-      font-family="system-ui,sans-serif">${labelDescs[ci]}</text>`;
+      >${colNames[ci]}</text>`;
 
     for (let ni = 0; ni < 4; ni++) {
       const cy = NODE_NY[ni];
-      const w = clamp(wts[ci][ni], 0, 1);
-      const r = isActive ? clamp(5 + w * 6, 5, 11) : (isDone ? clamp(4 + w * 3, 4, 7) : 4);
-      const opacity = isActive ? clamp(0.4 + w * 0.6, 0.4, 1) : (isDone ? clamp(0.25 + w * 0.45, 0.22, 0.7) : 0.18);
-      const fill = isActive ? color : (isDone ? color : "#1a2640");
-      const stroke = isActive ? color : (isDone ? color + "80" : "#2a3550");
-      const gf = isActive && w > 0.5 ? ' filter="url(#glow)"' : (isActive ? ' filter="url(#glow-sm)"' : "");
+      const nd = cols[ci][ni];
+      const w  = nd.sw;
+      const r  = isActive ? clamp(4 + w * 7, 4.5, 11) : (isDone ? clamp(3.5 + w * 3.5, 3.5, 7) : 3.5);
+      const op = isActive ? clamp(0.45 + w * 0.55, 0.45, 1) : (isDone ? clamp(0.22 + w * 0.48, 0.22, 0.72) : 0.14);
+      const gf = isActive ? (w > 0.6 ? ' filter="url(#glow)"' : ' filter="url(#glow-sm)"') : "";
       svg += `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}"
-        fill="${fill}" stroke="${stroke}" stroke-width="${isActive ? 1.5 : 0.8}"
-        opacity="${opacity.toFixed(2)}"${gf} style="cursor:pointer" onclick="goToStep(${ci+1})"/>`;
+        fill="${isActive ? color : (isDone ? color : '#111d30')}"
+        stroke="${isActive ? color : (isDone ? color+'88' : '#2a3550')}"
+        stroke-width="${isActive ? 1.4 : 0.7}"
+        opacity="${op.toFixed(2)}"${gf}
+        style="cursor:pointer" onclick="goToStep(${ci+1})"/>`;
+
+      // Label shown right-of-node for cols 0-2, left-of-node for cols 3-5
+      if (nd.label && nd.label !== "—" && (isActive || isDone)) {
+        const lx = ci < 3 ? cx + r + 4 : cx - r - 4;
+        svg += `<text x="${lx}" y="${cy+4}" text-anchor="${ci < 3 ? 'start' : 'end'}"
+          font-size="10" fill="${isActive ? color : color+'99'}"
+          font-family="system-ui,monospace" opacity="${op.toFixed(2)}"
+          >${esc(nd.label)}</text>`;
+      }
     }
   }
 
