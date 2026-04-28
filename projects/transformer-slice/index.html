@@ -51,7 +51,7 @@
   .app {
     height: 100%;
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     gap: 12px;
     padding: 14px;
   }
@@ -82,6 +82,100 @@
   }
   .brand span { color: var(--muted); font-size: 12px; }
   .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .loop-strip {
+    min-height: 126px;
+    padding: 8px 12px 10px;
+    border: 1px solid rgba(132, 177, 255, 0.2);
+    border-radius: 16px;
+    background: rgba(7, 13, 26, 0.78);
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(12px);
+    transition: min-height 180ms ease, padding 180ms ease;
+  }
+  .loop-strip.collapsed {
+    min-height: 36px;
+    padding: 7px 12px;
+  }
+  .loop-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .loop-strip.collapsed .loop-head { margin-bottom: 0; }
+  .loop-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .loop-title b { color: var(--cyan); }
+  .loop-title span:last-child {
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--muted);
+  }
+  .loop-body {
+    height: 76px;
+  }
+  .loop-strip.collapsed .loop-body { display: none; }
+  .network-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+  }
+  .net-line {
+    stroke: rgba(132, 177, 255, 0.22);
+    stroke-width: 1.1;
+  }
+  .net-line.hot {
+    stroke: rgba(255, 209, 102, 0.95);
+    stroke-width: 2;
+    filter: drop-shadow(0 0 5px rgba(255, 209, 102, 0.55));
+  }
+  .net-node {
+    stroke: rgba(237, 245, 255, 0.55);
+    stroke-width: 1.2;
+    fill: rgba(102, 217, 255, 0.42);
+  }
+  .net-node.hidden { fill: rgba(178, 140, 255, 0.45); }
+  .net-node.output { fill: rgba(156, 255, 183, 0.56); }
+  .net-node.active {
+    fill: var(--amber);
+    stroke: #fff0bd;
+    filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.65));
+  }
+  .net-node.done {
+    fill: var(--cyan);
+    stroke: rgba(237, 245, 255, 0.75);
+  }
+  .activation-window {
+    fill: rgba(255, 209, 102, 0.045);
+    stroke: rgba(255, 209, 102, 0.75);
+    stroke-width: 1.1;
+    stroke-dasharray: 5 4;
+  }
+  .net-label {
+    fill: var(--muted);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .net-small {
+    fill: rgba(237, 245, 255, 0.82);
+    font-size: 8px;
+  }
+  .net-prob {
+    fill: var(--amber);
+    font-size: 8px;
+    font-variant-numeric: tabular-nums;
+  }
 
   .grid {
     min-height: 0;
@@ -390,10 +484,53 @@
   }
   .legend b { display: block; color: var(--text); margin-bottom: 3px; }
 
+  .tour-highlight {
+    position: relative;
+    z-index: 30;
+    outline: 2px solid var(--amber);
+    outline-offset: 4px;
+    box-shadow: 0 0 0 8px rgba(255, 209, 102, 0.12), 0 0 32px rgba(255, 209, 102, 0.35);
+  }
+  .tour-tip {
+    position: fixed;
+    z-index: 40;
+    width: min(310px, calc(100vw - 28px));
+    padding: 13px;
+    border-radius: 14px;
+    color: var(--text);
+    background: rgba(7, 12, 24, 0.96);
+    border: 1px solid rgba(255, 209, 102, 0.55);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 0 24px rgba(255, 209, 102, 0.12);
+    display: none;
+  }
+  .tour-tip.show { display: block; }
+  .tour-tip b {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--amber);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 12px;
+  }
+  .tour-tip p {
+    margin: 0 0 11px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .tour-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .tour-actions span { color: var(--muted); font-size: 11px; }
+
   @media (max-width: 1100px) {
     body { overflow: auto; }
     .app { height: auto; min-height: 100%; }
     .grid { grid-template-columns: 1fr; }
+    .loop-strip { min-height: 116px; }
     .panel-b { height: auto; max-height: none; }
     .machine { grid-template-columns: 1fr; }
     .stage-line { grid-template-columns: repeat(2, 1fr); }
@@ -409,11 +546,23 @@
       <span>A toy decoder where the AI asks and the human turns the model dials.</span>
     </div>
     <div class="header-actions">
+      <button class="ghost" id="tourBtn">Start tour</button>
       <button class="ghost" id="resetBtn">Reset</button>
       <button id="autoBtn">Auto-step</button>
       <button class="primary" id="sampleBtn">Sample next token</button>
     </div>
   </header>
+
+  <section class="loop-strip" id="loopStrip" aria-label="Simplified neural network loop">
+    <div class="loop-head">
+      <div class="loop-title">
+        <b>Neural Loop</b>
+        <span id="loopSummary">one tiny decoder pass, not to scale</span>
+      </div>
+      <button class="ghost" id="loopToggle">Hide loop</button>
+    </div>
+    <div class="loop-body" id="loopBody"></div>
+  </section>
 
   <main class="grid">
     <section class="panel">
@@ -522,6 +671,7 @@
     </section>
   </main>
 </div>
+<div class="tour-tip" id="tourTip" role="dialog" aria-live="polite"></div>
 
 <script>
 "use strict";
@@ -584,8 +734,79 @@ const state = {
   phase: 2,
   step: 1,
   auto: null,
-  lastPicked: null
+  autoGoal: 0,
+  lastPicked: null,
+  tourStep: -1,
+  loopCollapsed: false
 };
+
+const TOUR = [
+  {
+    selector: "#preset",
+    title: "Choose a scenario",
+    text: "Start with a short prompt. Each preset gives the decoder a different context to complete."
+  },
+  {
+    selector: "#loadBtn",
+    title: "Tokenize prompt",
+    text: "Click this after editing the prompt. The text becomes token chips, which stand in for tokenizer output."
+  },
+  {
+    selector: "#tokens",
+    title: "Read the chain",
+    text: "The left panel is the current context window. The newest token is highlighted because the next token is predicted from this position."
+  },
+  {
+    selector: "#loopStrip",
+    title: "Watch the loop",
+    text: "This slim bar shows the tiny decoder pass from tokens to embeddings, attention, mixer, logits, and sampling. It lights up as the page state changes."
+  },
+  {
+    selector: "[data-attn]",
+    title: "Set attention",
+    text: "Drag one attention slider. Higher values mean this token contributes more to the context vector for the next prediction."
+  },
+  {
+    selector: "[data-dial]",
+    title: "Mix features",
+    text: "Drag a feature dial. This toy MLP mixer boosts broad patterns like object, action, place, logic, and tone."
+  },
+  {
+    selector: "#temp",
+    title: "Temperature",
+    text: "Lower temperature favors the top token. Higher temperature spreads probability across stranger options."
+  },
+  {
+    selector: "#topk",
+    title: "Top-k",
+    text: "Top-k limits how many candidate tokens are eligible before sampling. Small k is safer; large k is looser."
+  },
+  {
+    selector: "[data-persona='story']",
+    title: "Persona shortcut",
+    text: "Click story, technical, plain, or strange to quickly reshape the feature dials and sampling controls."
+  },
+  {
+    selector: "[data-pick]",
+    title: "Manual token pick",
+    text: "Click any candidate if you want to override sampling. This appends that token and runs the decoder slice again."
+  },
+  {
+    selector: "#sampleBtn",
+    title: "Sample next token",
+    text: "Click here to let the probability distribution pick the next token. The loop repeats: append token, rebuild context, score again."
+  },
+  {
+    selector: "#autoBtn",
+    title: "Speed up the loop",
+    text: "Auto-step samples eight fresh decoder passes from wherever you are, so it still works after you already have many generated tokens."
+  },
+  {
+    selector: "#resetBtn",
+    title: "Reset",
+    text: "Reset returns to the selected prompt and clears generated tokens so you can try a different path."
+  }
+];
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -710,6 +931,53 @@ function renderStages() {
   $("phaseLabel").textContent = STAGES[state.phase][0];
 }
 
+function renderLoopStrip() {
+  $("loopStrip").classList.toggle("collapsed", state.loopCollapsed);
+  $("loopToggle").textContent = state.loopCollapsed ? "Show loop" : "Hide loop";
+  $("loopSummary").textContent = state.loopCollapsed
+    ? `${STAGES[state.phase][0]} active, ${state.generated.length} sampled`
+    : `pass ${state.step}: ${STAGES[state.phase][0]} active, ${state.generated.length} sampled token${state.generated.length === 1 ? "" : "s"}`;
+
+  const tokens = allTokens().slice(-4);
+  const inputs = (tokens.length ? tokens : ["prompt"]).map((t, i, arr) => ({
+    x: 80,
+    y: 18 + i * (42 / Math.max(1, arr.length - 1 || 1)),
+    label: t
+  }));
+  const hiddenA = ["context", "grammar", "order", "attention"].map((label, i) => ({ x: 315, y: 12 + i * 16, label }));
+  const hiddenB = ["features", "pattern", "activation", "residual"].map((label, i) => ({ x: 545, y: 12 + i * 16, label }));
+  const outs = probabilities().slice(0, 4).map((p, i) => ({ x: 810, y: 12 + i * 16, label: p.token, prob: p.prob }));
+
+  const layerForPhase = [0, 0, 1, 2, 3, 3][state.phase] || 0;
+  const clsFor = layer => layer === layerForPhase ? "active" : (layer < layerForPhase ? "done" : "");
+  const lines = [];
+  for (const a of inputs) for (const b of hiddenA) lines.push([a, b, layerForPhase >= 1 && b.y === hiddenA[1].y]);
+  for (const a of hiddenA) for (const b of hiddenB) lines.push([a, b, layerForPhase >= 2 && a.y === hiddenA[1].y && b.y === hiddenB[2].y]);
+  for (const a of hiddenB) for (const b of outs) lines.push([a, b, layerForPhase >= 3 && a.y === hiddenB[2].y && b.y === outs[0]?.y]);
+
+  const circles = (nodes, type, layer) => nodes.map(n => `
+    <g>
+      <circle class="net-node ${type} ${clsFor(layer)}" cx="${n.x}" cy="${n.y}" r="8"/>
+      <text class="net-small" x="${n.x + 13}" y="${n.y + 3}">${esc(String(n.label).slice(0, 12))}${n.prob != null ? ` ${Math.round(n.prob * 100)}%` : ""}</text>
+    </g>
+  `).join("");
+
+  $("loopBody").innerHTML = `<svg class="network-svg" viewBox="0 0 1000 76" preserveAspectRatio="none" aria-hidden="true">
+    <text class="net-label" x="28" y="9">input tokens</text>
+    <text class="net-label" x="275" y="9">hidden slice</text>
+    <text class="net-label" x="505" y="9">activation / mixer</text>
+    <text class="net-label" x="770" y="9">output logits</text>
+    <rect class="activation-window" x="500" y="5" width="100" height="66" rx="12"/>
+    ${lines.map(([a, b, hot]) => `<line class="net-line ${hot ? "hot" : ""}" x1="${a.x + 8}" y1="${a.y}" x2="${b.x - 8}" y2="${b.y}"/>`).join("")}
+    ${circles(inputs, "input", 0)}
+    ${circles(hiddenA, "hidden", 1)}
+    ${circles(hiddenB, "hidden", 2)}
+    ${circles(outs, "output", 3)}
+    <path class="net-line ${state.phase === 5 ? "hot" : ""}" d="M885 60 C940 60 940 18 88 18" fill="none"/>
+    <text class="net-prob" x="906" y="54">append + loop</text>
+  </svg>`;
+}
+
 function renderTokens() {
   const toks = allTokens();
   $("tokens").innerHTML = toks.map((t, i) => `
@@ -811,17 +1079,90 @@ function renderOutputs() {
   $("speedOut").textContent = $("speed").value;
 }
 
+function currentTourTarget() {
+  const step = TOUR[state.tourStep];
+  return step ? document.querySelector(step.selector) : null;
+}
+
+function clearTourHighlight() {
+  document.querySelectorAll(".tour-highlight").forEach(el => el.classList.remove("tour-highlight"));
+}
+
+function positionTourTip(target) {
+  const tip = $("tourTip");
+  const rect = target.getBoundingClientRect();
+  const pad = 14;
+  const width = Math.min(310, window.innerWidth - pad * 2);
+  tip.style.width = width + "px";
+  let left = rect.right + 14;
+  let top = rect.top;
+  if (left + width > window.innerWidth - pad) left = rect.left - width - 14;
+  if (left < pad) left = Math.min(window.innerWidth - width - pad, pad);
+  if (top + tip.offsetHeight > window.innerHeight - pad) top = window.innerHeight - tip.offsetHeight - pad;
+  tip.style.left = left + "px";
+  tip.style.top = Math.max(pad, top) + "px";
+}
+
+function showTourStep() {
+  clearTourHighlight();
+  const tip = $("tourTip");
+  if (state.tourStep < 0 || state.tourStep >= TOUR.length) {
+    state.tourStep = -1;
+    tip.classList.remove("show");
+    $("tourBtn").textContent = "Start tour";
+    return;
+  }
+  const step = TOUR[state.tourStep];
+  const target = currentTourTarget();
+  if (!target) {
+    state.tourStep = Math.min(TOUR.length - 1, state.tourStep + 1);
+    showTourStep();
+    return;
+  }
+  target.classList.add("tour-highlight");
+  target.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+  tip.innerHTML = `
+    <b>${esc(step.title)}</b>
+    <p>${esc(step.text)}</p>
+    <div class="tour-actions">
+      <button class="ghost" id="tourSkip">Exit</button>
+      <span>${state.tourStep + 1} / ${TOUR.length}</span>
+      <button class="primary" id="tourNext">${state.tourStep === TOUR.length - 1 ? "Done" : "Next"}</button>
+    </div>
+  `;
+  tip.classList.add("show");
+  requestAnimationFrame(() => positionTourTip(target));
+  $("tourSkip").onclick = endTour;
+  $("tourNext").onclick = () => {
+    state.tourStep += 1;
+    showTourStep();
+  };
+}
+
+function startTour() {
+  state.tourStep = 0;
+  $("tourBtn").textContent = "Restart tour";
+  showTourStep();
+}
+
+function endTour() {
+  state.tourStep = -1;
+  showTourStep();
+}
+
 function render() {
   if (!state.baseTokens.length) state.baseTokens = tokenize($("prompt").value);
   if (state.attention.length !== allTokens().length) seedAttention();
   renderOutputs();
   renderStages();
+  renderLoopStrip();
   renderTokens();
   renderChunkScan();
   renderAttention();
   renderDials();
   renderLogits();
   renderExplain();
+  if (state.tourStep >= 0) requestAnimationFrame(showTourStep);
 }
 
 function applyPersona(name) {
@@ -838,13 +1179,15 @@ function toggleAuto() {
   if (state.auto) {
     clearInterval(state.auto);
     state.auto = null;
+    state.autoGoal = 0;
     $("autoBtn").textContent = "Auto-step";
     return;
   }
   $("autoBtn").textContent = "Stop auto";
+  state.autoGoal = state.generated.length + 8;
   state.auto = setInterval(() => {
     pickSample();
-    if (state.generated.length >= 14) toggleAuto();
+    if (state.generated.length >= state.autoGoal) toggleAuto();
   }, Number($("speed").value));
 }
 
@@ -857,6 +1200,7 @@ function init() {
   };
   $("loadBtn").onclick = loadPrompt;
   $("sampleBtn").onclick = pickSample;
+  $("tourBtn").onclick = startTour;
   $("resetBtn").onclick = () => {
     if (state.auto) toggleAuto();
     $("prompt").value = PRESETS[Number($("preset").value)].text;
@@ -864,8 +1208,19 @@ function init() {
     loadPrompt();
   };
   $("autoBtn").onclick = toggleAuto;
+  $("loopToggle").onclick = () => {
+    state.loopCollapsed = !state.loopCollapsed;
+    renderLoopStrip();
+  };
   ["temp", "topk", "speed"].forEach(id => $(id).oninput = render);
   document.querySelectorAll("[data-persona]").forEach(btn => btn.onclick = () => applyPersona(btn.dataset.persona));
+  window.addEventListener("resize", () => {
+    const target = currentTourTarget();
+    if (target && state.tourStep >= 0) positionTourTip(target);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && state.tourStep >= 0) endTour();
+  });
   loadPrompt();
 }
 

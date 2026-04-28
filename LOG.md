@@ -16,6 +16,20 @@ and top-k before sampling the next token. It is intentionally not an
 exact LLM implementation; it demonstrates the next-token flow from
 tokens to embeddings, attention, residual/MLP-style mixing, logits,
 softmax probabilities, sampling, and looped generation in a small slice.
+Added a guided tutorial overlay that highlights the scenario picker,
+tokenize button, token chain, attention sliders, feature dials, sampling
+controls, persona shortcuts, candidate tokens, sample button, auto-step,
+and reset so visitors can follow the decoder loop without guessing where
+to click.
+Added a slim collapsible neural-loop strip across the top of the page
+showing the simplified decoder path as connected nodes: tokens,
+embeddings, attention, mixer, logits, and sampling. The active node and
+summary update as the user samples or manually picks tokens.
+Reworked the strip into a compact neural-network-style SVG with input
+nodes, hidden nodes, an activation/mixer window, output candidates, and
+highlighted flow lines. Fixed auto-step so each click runs a fresh batch
+from the current response length instead of stopping immediately once an
+older generated-token cap had already been reached.
 
 ---
 
