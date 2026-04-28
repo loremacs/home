@@ -5,6 +5,20 @@ This is a creative log, not a version changelog.
 
 ---
 
+## 2026-04-27
+
+### Transformer Slice
+A visual, interactive toy decoder that flips the usual chat interface:
+the AI asks the human to act as the model. The user starts with a short
+prompt, watches it become token chips and fake embedding vectors, then
+manually adjusts attention weights, feature-mixer dials, temperature,
+and top-k before sampling the next token. It is intentionally not an
+exact LLM implementation; it demonstrates the next-token flow from
+tokens to embeddings, attention, residual/MLP-style mixing, logits,
+softmax probabilities, sampling, and looped generation in a small slice.
+
+---
+
 ## 2026-04-22
 
 ### ThisIsFine

@@ -38,10 +38,14 @@ SSH note: the SSH key on this machine is registered to `jasolvren`, not
     │   └── index.html           top-down game POC (read-only)
     ├── newsmap/
     │   └── index.html           open world-intel dashboard
+    ├── gemini-prism-break/
+    │   └── index.html           neon arcade block-breaker
     ├── this-is-fine/
     │   └── index.html           layoffs news + tech job tracker
-    └── logic-lab/
-        └── index.html           gate-puzzle game: wire IC chips, satisfy truth tables
+    ├── logic-lab/
+    │   └── index.html           gate-puzzle game: wire IC chips, satisfy truth tables
+    └── transformer-slice/
+        └── index.html           human-in-the-loop toy transformer decoder
 ```
 
 ---
@@ -49,7 +53,7 @@ SSH note: the SSH key on this machine is registered to `jasolvren`, not
 ## 3. How to add a new card
 
 The catalog is a JS array in `index.html` around line 373 (search
-`const CATALOG`). **7 entries are live**, 24 are named placeholders.
+`const CATALOG`). **8 entries are live**, 23 are named placeholders.
 
 **Checklist — do all five steps:**
 
@@ -75,9 +79,9 @@ The catalog is a JS array in `index.html` around line 373 (search
    - Dark background thematically matched to the app's own colour palette.
    - Show recognisable elements: dominant colours, key UI shapes, data patterns.
    - Max ~50 SVG elements. No `<image>` tags or external refs.
-   - Reference the existing 7 thumbnails for style guidance (`playwright`,
+- Reference the existing 8 thumbnails for style guidance (`playwright`,
      `emergent`, `curtain-lens`, `newsmap`, `prism-break`, `this-is-fine`,
-     `logic-lab`).
+  `logic-lab`, `transformer-slice`).
 
 4. **Update the file tree** in §2 of this file and the live-card count
    in §3 above.

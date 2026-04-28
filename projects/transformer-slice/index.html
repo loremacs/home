@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transformer Slice</title>
+<style>
+  :root {
+    --bg: #050813;
+    --panel: rgba(11, 18, 34, 0.86);
+    --panel2: rgba(16, 27, 50, 0.78);
+    --line: rgba(132, 177, 255, 0.22);
+    --text: #edf5ff;
+    --muted: #91a0bb;
+    --blue: #66d9ff;
+    --cyan: #7dffe1;
+    --violet: #b28cff;
+    --amber: #ffd166;
+    --rose: #ff6b9a;
+    --green: #9cffb7;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 15% 20%, rgba(102, 217, 255, 0.14), transparent 30%),
+      radial-gradient(circle at 88% 10%, rgba(178, 140, 255, 0.13), transparent 28%),
+      linear-gradient(135deg, #03050d, #081321 55%, #040712);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+
+  button, input, textarea, select { font: inherit; }
+  button {
+    color: var(--text);
+    background: rgba(102, 217, 255, 0.12);
+    border: 1px solid rgba(102, 217, 255, 0.35);
+    border-radius: 10px;
+    padding: 8px 11px;
+    cursor: pointer;
+  }
+  button:hover { border-color: rgba(125, 255, 225, 0.75); box-shadow: 0 0 18px rgba(102, 217, 255, 0.12); }
+  button.primary { background: linear-gradient(135deg, rgba(102,217,255,.24), rgba(178,140,255,.22)); }
+  button.ghost { background: transparent; border-color: rgba(145, 160, 187, 0.28); color: var(--muted); }
+  button.active { border-color: var(--amber); color: var(--amber); }
+
+  .app {
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  header {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    min-height: 50px;
+  }
+  .back {
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 7px 10px;
+    background: rgba(8, 14, 26, 0.7);
+  }
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .brand b {
+    font-size: 18px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .brand span { color: var(--muted); font-size: 12px; }
+  .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .grid {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(250px, 0.85fr) minmax(420px, 1.4fr) minmax(300px, 0.95fr);
+    gap: 12px;
+  }
+
+  .panel {
+    min-height: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 20px 70px var(--shadow);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+  }
+  .panel-h {
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .panel-h h2 {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--blue);
+  }
+  .panel-h small { color: var(--muted); }
+  .panel-b {
+    height: calc(100% - 48px);
+    overflow: auto;
+    padding: 14px;
+  }
+
+  .prompt-box {
+    display: grid;
+    gap: 9px;
+  }
+  textarea {
+    width: 100%;
+    min-height: 76px;
+    resize: vertical;
+    color: var(--text);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(132, 177, 255, 0.25);
+    border-radius: 12px;
+    padding: 10px;
+  }
+  select {
+    color: var(--text);
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(132, 177, 255, 0.25);
+    border-radius: 10px;
+    padding: 8px;
+  }
+  option { background: #07101e; }
+
+  .tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .tok {
+    position: relative;
+    border: 1px solid rgba(102, 217, 255, 0.28);
+    background: rgba(102, 217, 255, 0.08);
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  .tok.current { color: #06131a; background: var(--cyan); border-color: var(--cyan); font-weight: 800; }
+  .tok small { color: inherit; opacity: 0.75; margin-left: 4px; }
+
+  .chunk {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(145, 160, 187, 0.18);
+    background: rgba(255, 255, 255, 0.035);
+  }
+  .chunk-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .bars { display: grid; gap: 6px; }
+  .bar {
+    display: grid;
+    grid-template-columns: 74px 1fr 34px;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .bar-track {
+    height: 8px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .bar-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--violet)); }
+
+  .flow {
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(220px, 1fr) auto;
+    gap: 12px;
+  }
+  .stage-line {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+  .stage {
+    min-height: 74px;
+    padding: 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(132, 177, 255, 0.18);
+    background: rgba(255, 255, 255, 0.035);
+  }
+  .stage.active {
+    border-color: rgba(125, 255, 225, 0.7);
+    box-shadow: 0 0 24px rgba(125, 255, 225, 0.1) inset;
+  }
+  .stage b {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 6px;
+  }
+  .stage p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .machine {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .slice {
+    border: 1px solid rgba(132, 177, 255, 0.18);
+    background: rgba(0, 0, 0, 0.16);
+    border-radius: 16px;
+    padding: 12px;
+    min-height: 0;
+    overflow: auto;
+  }
+  .slice h3 {
+    margin: 0 0 9px;
+    color: var(--blue);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .note {
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .attention-row, .dial-row {
+    display: grid;
+    grid-template-columns: 76px 1fr 42px;
+    align-items: center;
+    gap: 9px;
+    margin: 10px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--cyan);
+  }
+  .readout {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .vector {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .vec-cell {
+    min-height: 80px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(145, 160, 187, 0.18);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .vec-meter {
+    height: 44px;
+    display: flex;
+    align-items: flex-end;
+  }
+  .vec-meter span {
+    width: 100%;
+    min-height: 2px;
+    border-radius: 8px 8px 2px 2px;
+    background: linear-gradient(0deg, var(--violet), var(--cyan));
+  }
+  .vec-cell b { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .logits {
+    display: grid;
+    gap: 8px;
+  }
+  .candidate {
+    display: grid;
+    grid-template-columns: 76px 1fr 54px;
+    gap: 9px;
+    align-items: center;
+    border: 1px solid rgba(132, 177, 255, 0.18);
+    background: rgba(255, 255, 255, 0.035);
+    border-radius: 12px;
+    padding: 8px;
+  }
+  .candidate:hover { border-color: rgba(255, 209, 102, 0.65); }
+  .candidate b { color: var(--text); }
+  .prob-track {
+    height: 12px;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .prob-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--amber), var(--rose));
+  }
+  .prob { text-align: right; color: var(--amber); font-variant-numeric: tabular-nums; font-size: 12px; }
+
+  .controls {
+    display: grid;
+    gap: 12px;
+  }
+  .ask {
+    border-radius: 16px;
+    padding: 12px;
+    border: 1px solid rgba(255, 209, 102, 0.28);
+    background: rgba(255, 209, 102, 0.07);
+  }
+  .ask b { color: var(--amber); }
+  .ask p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+  .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    border: 1px solid rgba(145, 160, 187, 0.22);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  .timeline {
+    min-height: 72px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    align-content: flex-start;
+    padding: 10px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(132, 177, 255, 0.16);
+  }
+  .status {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .legend div {
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(132, 177, 255, 0.14);
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .legend b { display: block; color: var(--text); margin-bottom: 3px; }
+
+  @media (max-width: 1100px) {
+    body { overflow: auto; }
+    .app { height: auto; min-height: 100%; }
+    .grid { grid-template-columns: 1fr; }
+    .panel-b { height: auto; max-height: none; }
+    .machine { grid-template-columns: 1fr; }
+    .stage-line { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <a class="back" href="../../index.html" title="Back to atlas">&larr;</a>
+    <div class="brand">
+      <b>Transformer Slice</b>
+      <span>A toy decoder where the AI asks and the human turns the model dials.</span>
+    </div>
+    <div class="header-actions">
+      <button class="ghost" id="resetBtn">Reset</button>
+      <button id="autoBtn">Auto-step</button>
+      <button class="primary" id="sampleBtn">Sample next token</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel">
+      <div class="panel-h"><h2>Input Chain</h2><small id="stepLabel">step 1</small></div>
+      <div class="panel-b">
+        <div class="prompt-box">
+          <label for="preset">Scenario</label>
+          <select id="preset"></select>
+          <label for="prompt">Prompt</label>
+          <textarea id="prompt" spellcheck="false"></textarea>
+          <button id="loadBtn">Tokenize prompt</button>
+        </div>
+        <div class="chunk">
+          <div class="chunk-title"><span>Token chips</span><span>left to right</span></div>
+          <div class="tokens" id="tokens"></div>
+        </div>
+        <div class="chunk">
+          <div class="chunk-title"><span>Generated response</span><span id="tokenCount">0 tokens</span></div>
+          <div class="timeline" id="timeline"></div>
+        </div>
+        <div class="chunk">
+          <div class="chunk-title"><span>Chunk feature scan</span><span>fake embedding view</span></div>
+          <div id="chunkScan"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><h2>Sliced Decoder View</h2><small id="phaseLabel">attention</small></div>
+      <div class="panel-b">
+        <div class="flow">
+          <div class="stage-line" id="stageLine"></div>
+          <div class="machine">
+            <div class="slice">
+              <h3>Attention Head</h3>
+              <p class="note">Choose which previous tokens matter for the next word. Real models learn many heads; this toy shows one visible head.</p>
+              <div id="attentionControls"></div>
+            </div>
+            <div class="slice">
+              <h3>Residual + MLP Mixer</h3>
+              <p class="note">The weighted context is mixed with learned feature preferences. These sliders stand in for many trained matrices.</p>
+              <div id="dialControls"></div>
+              <div class="vector" id="contextVector"></div>
+            </div>
+            <div class="slice">
+              <h3>Logit Board</h3>
+              <p class="note">Every candidate token gets a score. Softmax turns scores into probabilities; sampling picks one and the loop repeats.</p>
+              <div class="logits" id="logits"></div>
+            </div>
+            <div class="slice">
+              <h3>What This Slice Represents</h3>
+              <div class="legend">
+                <div><b>Embeddings</b>Tokens become numeric feature vectors, not dictionary definitions.</div>
+                <div><b>Attention</b>The current position copies useful context from earlier positions.</div>
+                <div><b>MLP</b>A feature mixer boosts patterns that the model learned during training.</div>
+                <div><b>Logits</b>Candidate next tokens are scored before probabilities exist.</div>
+                <div><b>Temperature</b>Higher values flatten probabilities and make odd tokens easier to pick.</div>
+                <div><b>Loop</b>The chosen token is appended, then the whole decoder slice runs again.</div>
+              </div>
+            </div>
+          </div>
+          <div class="status" id="explain"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><h2>Human Decoder Controls</h2><small>you are the model</small></div>
+      <div class="panel-b controls">
+        <div class="ask">
+          <b id="askTitle">AI asks:</b>
+          <p id="askText">Turn the dials so the next token distribution makes sense for the prompt.</p>
+        </div>
+        <div class="slice">
+          <h3>Sampling Controls</h3>
+          <div class="dial-row">
+            <span>temp</span>
+            <input id="temp" type="range" min="0.35" max="1.8" step="0.05" value="0.8">
+            <span class="readout" id="tempOut">0.80</span>
+          </div>
+          <div class="dial-row">
+            <span>top-k</span>
+            <input id="topk" type="range" min="2" max="8" step="1" value="5">
+            <span class="readout" id="topkOut">5</span>
+          </div>
+          <div class="dial-row">
+            <span>speed</span>
+            <input id="speed" type="range" min="500" max="1800" step="100" value="900">
+            <span class="readout" id="speedOut">900</span>
+          </div>
+        </div>
+        <div class="slice">
+          <h3>Preset Personas</h3>
+          <div class="pill-row">
+            <button class="ghost" data-persona="plain">plain</button>
+            <button class="ghost" data-persona="story">story</button>
+            <button class="ghost" data-persona="technical">technical</button>
+            <button class="ghost" data-persona="strange">strange</button>
+          </div>
+        </div>
+        <div class="slice">
+          <h3>Trace</h3>
+          <div class="status" id="trace"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+
+const FEATURES = ["object", "action", "place", "logic", "tone"];
+const STAGES = [
+  ["tokens", "Split text into token-like chunks."],
+  ["embed", "Map each token to a small feature vector."],
+  ["attention", "Weight earlier tokens for this next position."],
+  ["mixer", "Blend context with learned feature preferences."],
+  ["logits", "Score each possible next token."],
+  ["sample", "Pick one token, append it, repeat."]
+];
+const PRESETS = [
+  { name: "Fantasy sentence", text: "The dragon opened the" },
+  { name: "Assistant answer", text: "To fix the bug we should" },
+  { name: "Weather report", text: "The storm moved over the" },
+  { name: "Tiny mystery", text: "Behind the locked door was" }
+];
+const VOCAB = [
+  ["door",      [1.0, .15, .25, .05, .20]],
+  ["sky",       [.55, .10, .95, .00, .42]],
+  ["map",       [.90, .08, .68, .40, .10]],
+  ["test",      [.55, .22, .05, .95, .02]],
+  ["reason",    [.20, .18, .04, 1.0, .18]],
+  ["because",   [.05, .10, .00, .95, .08]],
+  ["carefully", [.05, .38, .05, .45, .70]],
+  ["bright",    [.18, .05, .40, .05, .88]],
+  ["strange",   [.26, .12, .34, .12, 1.0]],
+  ["engine",    [1.0, .45, .08, .78, .05]],
+  ["question",  [.25, .12, .02, .92, .25]],
+  ["forest",    [.60, .08, 1.0, .02, .55]],
+  ["window",    [1.0, .06, .45, .06, .28]],
+  ["whispered", [.08, .88, .05, .03, .76]],
+  ["calculated",[.04, .92, .00, .96, .05]],
+  ["revealed",  [.18, .82, .16, .38, .62]],
+  ["small",     [.35, .04, .12, .08, .50]],
+  ["answer",    [.35, .16, .00, 1.0, .12]],
+  ["pattern",   [.72, .08, .10, .82, .28]],
+  ["lantern",   [1.0, .08, .45, .02, .72]],
+  ["city",      [.75, .07, 1.0, .08, .22]],
+  ["signal",    [.68, .34, .18, .80, .20]],
+  ["then",      [.05, .28, .00, .55, .12]],
+  ["again",     [.02, .32, .00, .45, .24]]
+].map(([token, vec]) => ({ token, vec }));
+
+const PERSONAS = {
+  plain:     { object: .48, action: .38, place: .22, logic: .45, tone: .20, temp: .75, topk: 4 },
+  story:     { object: .68, action: .55, place: .60, logic: .16, tone: .72, temp: .9, topk: 5 },
+  technical: { object: .44, action: .42, place: .05, logic: .88, tone: .08, temp: .65, topk: 3 },
+  strange:   { object: .40, action: .35, place: .50, logic: .18, tone: .95, temp: 1.35, topk: 7 }
+};
+
+const $ = id => document.getElementById(id);
+const state = {
+  baseTokens: [],
+  generated: [],
+  attention: [],
+  dials: { object: .55, action: .35, place: .30, logic: .28, tone: .45 },
+  phase: 2,
+  step: 1,
+  auto: null,
+  lastPicked: null
+};
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+function tokenize(text) {
+  return (text.toLowerCase().match(/[a-z0-9']+|[.,!?;]/g) || []).slice(0, 18);
+}
+
+function hashToken(token) {
+  let h = 2166136261;
+  for (let i = 0; i < token.length; i++) h = Math.imul(h ^ token.charCodeAt(i), 16777619);
+  return Math.abs(h);
+}
+
+function tokenVector(token) {
+  const known = VOCAB.find(v => v.token === token);
+  if (known) return known.vec;
+  const h = hashToken(token);
+  const vowels = (token.match(/[aeiou]/g) || []).length;
+  return [
+    ((h % 31) / 30) * .65 + (token.length > 4 ? .20 : .05),
+    (((h >> 3) % 29) / 28) * .55,
+    (((h >> 6) % 23) / 22) * .55,
+    (/[0-9]/.test(token) ? .9 : ((h >> 9) % 17) / 24),
+    Math.min(1, .18 + vowels / Math.max(3, token.length))
+  ].map(v => clamp(v, 0, 1));
+}
+
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function allTokens() {
+  return [...state.baseTokens, ...state.generated];
+}
+
+function loadPrompt() {
+  state.baseTokens = tokenize($("prompt").value);
+  state.generated = [];
+  state.step = 1;
+  state.lastPicked = null;
+  seedAttention();
+  render();
+}
+
+function seedAttention() {
+  const toks = allTokens();
+  state.attention = toks.map((_, i) => {
+    const recency = (i + 1) / Math.max(1, toks.length);
+    return clamp(.25 + recency * .55, 0, 1);
+  });
+}
+
+function normalizedAttention() {
+  const toks = allTokens();
+  if (!toks.length) return [];
+  const raw = state.attention.slice(0, toks.length).map(v => Math.max(0.01, Number(v) || 0.01));
+  const sum = raw.reduce((a, b) => a + b, 0);
+  return raw.map(v => v / sum);
+}
+
+function contextVector() {
+  const toks = allTokens();
+  const attn = normalizedAttention();
+  const ctx = [0, 0, 0, 0, 0];
+  toks.forEach((tok, i) => {
+    const vec = tokenVector(tok);
+    FEATURES.forEach((_, j) => ctx[j] += vec[j] * (attn[i] || 0));
+  });
+  return ctx.map((v, i) => clamp(v * .72 + state.dials[FEATURES[i]] * .45, 0, 1.35));
+}
+
+function candidateScores() {
+  const ctx = contextVector();
+  const used = new Set(allTokens().slice(-4));
+  return VOCAB.map((cand, idx) => {
+    const dot = cand.vec.reduce((sum, v, i) => sum + v * ctx[i], 0);
+    const repeatPenalty = used.has(cand.token) ? -.65 : 0;
+    const rhythm = ((idx + state.step) % 5 === 0) ? .18 : 0;
+    return { ...cand, score: dot + repeatPenalty + rhythm };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function probabilities() {
+  const topK = Number($("topk").value);
+  const temp = Math.max(.1, Number($("temp").value));
+  const candidates = candidateScores().slice(0, topK);
+  const max = Math.max(...candidates.map(c => c.score));
+  const exps = candidates.map(c => Math.exp((c.score - max) / temp));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return candidates.map((c, i) => ({ ...c, prob: exps[i] / sum }));
+}
+
+function pickSample() {
+  const probs = probabilities();
+  let r = Math.random();
+  let picked = probs[probs.length - 1];
+  for (const p of probs) {
+    r -= p.prob;
+    if (r <= 0) { picked = p; break; }
+  }
+  appendToken(picked.token);
+}
+
+function appendToken(token) {
+  state.generated.push(token);
+  state.step += 1;
+  state.lastPicked = token;
+  state.phase = (state.phase + 1) % STAGES.length;
+  seedAttention();
+  render();
+}
+
+function renderStages() {
+  $("stageLine").innerHTML = STAGES.map((s, i) => `
+    <div class="stage ${i === state.phase ? "active" : ""}">
+      <b>${esc(s[0])}</b>
+      <p>${esc(s[1])}</p>
+    </div>
+  `).join("");
+  $("phaseLabel").textContent = STAGES[state.phase][0];
+}
+
+function renderTokens() {
+  const toks = allTokens();
+  $("tokens").innerHTML = toks.map((t, i) => `
+    <span class="tok ${i === toks.length - 1 ? "current" : ""}">${esc(t)}<small>${i}</small></span>
+  `).join("");
+  $("timeline").innerHTML = state.generated.length
+    ? state.generated.map((t, i) => `<span class="tok">${esc(t)}<small>${i + 1}</small></span>`).join("")
+    : `<span class="status">No sampled tokens yet. Tune the dials, then sample.</span>`;
+  $("tokenCount").textContent = `${state.generated.length} generated`;
+  $("stepLabel").textContent = `step ${state.step}`;
+}
+
+function renderChunkScan() {
+  $("chunkScan").innerHTML = allTokens().map(tok => {
+    const vec = tokenVector(tok);
+    return `<div class="chunk">
+      <div class="chunk-title"><span>${esc(tok)}</span><span>embedding</span></div>
+      <div class="bars">${FEATURES.map((f, i) => `
+        <div class="bar"><span>${f}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(vec[i] * 100)}%"></div></div><span>${vec[i].toFixed(2)}</span></div>
+      `).join("")}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderAttention() {
+  const toks = allTokens();
+  const norm = normalizedAttention();
+  $("attentionControls").innerHTML = toks.map((tok, i) => `
+    <div class="attention-row">
+      <span>${esc(tok)}</span>
+      <input type="range" min="0" max="1" step="0.01" value="${state.attention[i] ?? .5}" data-attn="${i}">
+      <span class="readout">${Math.round((norm[i] || 0) * 100)}%</span>
+    </div>
+  `).join("");
+  document.querySelectorAll("[data-attn]").forEach(input => {
+    input.oninput = e => {
+      state.attention[Number(e.target.dataset.attn)] = Number(e.target.value);
+      render();
+    };
+  });
+}
+
+function renderDials() {
+  $("dialControls").innerHTML = FEATURES.map(f => `
+    <div class="dial-row">
+      <span>${f}</span>
+      <input type="range" min="0" max="1" step="0.01" value="${state.dials[f]}" data-dial="${f}">
+      <span class="readout">${state.dials[f].toFixed(2)}</span>
+    </div>
+  `).join("");
+  document.querySelectorAll("[data-dial]").forEach(input => {
+    input.oninput = e => {
+      state.dials[e.target.dataset.dial] = Number(e.target.value);
+      render();
+    };
+  });
+  const ctx = contextVector();
+  $("contextVector").innerHTML = FEATURES.map((f, i) => `
+    <div class="vec-cell">
+      <div class="vec-meter"><span style="height:${Math.round(clamp(ctx[i], 0, 1) * 100)}%"></span></div>
+      <b>${f}</b>
+    </div>
+  `).join("");
+}
+
+function renderLogits() {
+  const probs = probabilities();
+  $("logits").innerHTML = probs.map(p => `
+    <button class="candidate" data-pick="${esc(p.token)}">
+      <b>${esc(p.token)}</b>
+      <span class="prob-track"><span class="prob-fill" style="display:block;width:${Math.max(2, Math.round(p.prob * 100))}%"></span></span>
+      <span class="prob">${Math.round(p.prob * 100)}%</span>
+    </button>
+  `).join("");
+  document.querySelectorAll("[data-pick]").forEach(btn => {
+    btn.onclick = e => appendToken(e.currentTarget.dataset.pick);
+  });
+}
+
+function renderExplain() {
+  const toks = allTokens();
+  const last = toks[toks.length - 1] || "(nothing)";
+  const top = probabilities()[0];
+  $("askTitle").textContent = "AI asks the human decoder:";
+  $("askText").textContent = `The current last token is "${last}". Set attention, feature boosts, temperature, and top-k so the next-token distribution feels plausible.`;
+  $("explain").textContent = `Current slice: ${STAGES[state.phase][0]}. Top candidate is "${top.token}" at ${Math.round(top.prob * 100)} percent, but sampling may still choose another token.`;
+  $("trace").innerHTML = [
+    `Input tokens: ${state.baseTokens.length}`,
+    `Generated tokens: ${state.generated.length}`,
+    `Last sampled: ${state.lastPicked || "none"}`,
+    `Visible layers: one attention head, one mixer, one logit board`,
+    `Not shown: billions of parameters, many layers, tokenizer details, training`
+  ].map(t => `<p>${esc(t)}</p>`).join("");
+}
+
+function renderOutputs() {
+  $("tempOut").textContent = Number($("temp").value).toFixed(2);
+  $("topkOut").textContent = $("topk").value;
+  $("speedOut").textContent = $("speed").value;
+}
+
+function render() {
+  if (!state.baseTokens.length) state.baseTokens = tokenize($("prompt").value);
+  if (state.attention.length !== allTokens().length) seedAttention();
+  renderOutputs();
+  renderStages();
+  renderTokens();
+  renderChunkScan();
+  renderAttention();
+  renderDials();
+  renderLogits();
+  renderExplain();
+}
+
+function applyPersona(name) {
+  const p = PERSONAS[name];
+  if (!p) return;
+  FEATURES.forEach(f => state.dials[f] = p[f]);
+  $("temp").value = p.temp;
+  $("topk").value = p.topk;
+  document.querySelectorAll("[data-persona]").forEach(b => b.classList.toggle("active", b.dataset.persona === name));
+  render();
+}
+
+function toggleAuto() {
+  if (state.auto) {
+    clearInterval(state.auto);
+    state.auto = null;
+    $("autoBtn").textContent = "Auto-step";
+    return;
+  }
+  $("autoBtn").textContent = "Stop auto";
+  state.auto = setInterval(() => {
+    pickSample();
+    if (state.generated.length >= 14) toggleAuto();
+  }, Number($("speed").value));
+}
+
+function init() {
+  $("preset").innerHTML = PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("");
+  $("prompt").value = PRESETS[0].text;
+  $("preset").onchange = e => {
+    $("prompt").value = PRESETS[Number(e.target.value)].text;
+    loadPrompt();
+  };
+  $("loadBtn").onclick = loadPrompt;
+  $("sampleBtn").onclick = pickSample;
+  $("resetBtn").onclick = () => {
+    if (state.auto) toggleAuto();
+    $("prompt").value = PRESETS[Number($("preset").value)].text;
+    state.dials = { object: .55, action: .35, place: .30, logic: .28, tone: .45 };
+    loadPrompt();
+  };
+  $("autoBtn").onclick = toggleAuto;
+  ["temp", "topk", "speed"].forEach(id => $(id).oninput = render);
+  document.querySelectorAll("[data-persona]").forEach(btn => btn.onclick = () => applyPersona(btn.dataset.persona));
+  loadPrompt();
+}
+
+init();
+</script>
+</body>
+</html>

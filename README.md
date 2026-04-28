@@ -24,7 +24,8 @@ the field. Cards you visit drift toward the front over time.
 | [Prism Break](projects/gemini-prism-break/) | Light-refracting neon arcade game with glassmorphic UI and particle physics. Created by Gemini3Flash. |
 | [ThisIsFine](projects/this-is-fine/) | Real-time layoffs news and tech job tracker with a 5-minute polling timer and custom fire-themed UI. |
 | [Logic Lab](projects/logic-lab/) | Gate-puzzle game: drag IC components onto a PCB grid, wire them up, and satisfy truth table test cases to advance through 10 levels. |
-| *(+24 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
+| [Transformer Slice](projects/transformer-slice/) | A visual toy decoder where the human turns attention, feature, logit, and sampling dials to generate next tokens. |
+| *(+23 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
 
 See [`LOG.md`](LOG.md) for a running history of what's been added and when.
 
@@ -33,7 +34,7 @@ See [`LOG.md`](LOG.md) for a running history of what's been added and when.
 ## How it works
 
 Every experiment is a single self-contained `index.html` file under `projects/`.
-No build step. No framework. No dependencies. Open any file in a browser and it runs.
+No build step. No framework. Most experiments have no runtime dependencies; a few pull CDN libraries for map/video demos. Open any file in a browser and it runs.
 
 The sphere on the landing page reads a catalog array in its own `<script>` block.
 Adding a new experiment is two steps:
