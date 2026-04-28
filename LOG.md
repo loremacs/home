@@ -42,6 +42,12 @@ Made the interaction feedback fully dynamic: token chips now show
 attention heat and percentages, neural-loop input nodes and flow lines
 scale with attention, output nodes scale with probability, and logit rows
 show raw score movement alongside probability.
+Rewrote the explanatory layer so every slider move produces a specific
+English sentence ("'dragon' has 62% attention and high object features,
+boosting 'door'") instead of a generic stat dump. Renamed panels to
+Step 1–5 with one-line descriptions of what each step actually does.
+Promoted the logit cause-effect narrative into the ask box and removed
+the orphaned explain div from the decoder panel.
 
 ---
 

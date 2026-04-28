@@ -492,6 +492,13 @@
   }
   .legend b { display: block; color: var(--text); margin-bottom: 3px; }
 
+  @keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0.55); }
+    70%  { box-shadow: 0 0 0 8px rgba(255, 209, 102, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
+  }
+  .pulse-hint { animation: pulse-ring 1.4s ease-out infinite; }
+
   .tour-highlight {
     position: relative;
     z-index: 30;
@@ -574,17 +581,17 @@
 
   <main class="grid">
     <section class="panel">
-      <div class="panel-h"><h2>Input Chain</h2><small id="stepLabel">step 1</small></div>
+      <div class="panel-h"><h2>Step 1 — Input &amp; Embeddings</h2><small id="stepLabel">pass 1</small></div>
       <div class="panel-b">
         <div class="prompt-box">
           <label for="preset">Scenario</label>
           <select id="preset"></select>
-          <label for="prompt">Prompt</label>
+          <label for="prompt">Prompt — click Tokenize to start</label>
           <textarea id="prompt" spellcheck="false"></textarea>
           <button id="loadBtn">Tokenize prompt</button>
         </div>
         <div class="chunk">
-          <div class="chunk-title"><span>Token chips</span><span>left to right</span></div>
+          <div class="chunk-title"><span>Token chips</span><span>heat = attention weight</span></div>
           <div class="tokens" id="tokens"></div>
         </div>
         <div class="chunk">
@@ -592,60 +599,61 @@
           <div class="timeline" id="timeline"></div>
         </div>
         <div class="chunk">
-          <div class="chunk-title"><span>Chunk feature scan</span><span>fake embedding view</span></div>
+          <div class="chunk-title"><span>Embeddings — feature fingerprints</span><span>one bar per dimension</span></div>
           <div id="chunkScan"></div>
         </div>
       </div>
     </section>
 
     <section class="panel">
-      <div class="panel-h"><h2>Sliced Decoder View</h2><small id="phaseLabel">attention</small></div>
+      <div class="panel-h"><h2>Decoder Pass</h2><small id="phaseLabel">attention</small></div>
       <div class="panel-b">
         <div class="flow">
           <div class="stage-line" id="stageLine"></div>
           <div class="machine">
             <div class="slice">
-              <h3>Attention Head</h3>
-              <p class="note">Choose which previous tokens matter for the next word. Real models learn many heads; this toy shows one visible head.</p>
+              <h3>Step 2 — Attention: what to copy from context</h3>
+              <p class="note">Slide a token up to tell the model it matters more. Slide it down to say it's less relevant. Watch the token chips on the left and the logit scores change in real time.</p>
               <div id="attentionControls"></div>
             </div>
             <div class="slice">
-              <h3>Residual + MLP Mixer</h3>
-              <p class="note">The weighted context is mixed with learned feature preferences. These sliders stand in for many trained matrices.</p>
+              <h3>Step 3 — Feature mixer: what kind of word to favour</h3>
+              <p class="note">Each dial amplifies a broad feature type. Turn <b>object</b> up to push nouns like "door" or "window". Turn <b>logic</b> up to push words like "because" or "reason". The bars below show the resulting context vector — the blended signal before scoring.</p>
               <div id="dialControls"></div>
               <div class="vector" id="contextVector"></div>
             </div>
             <div class="slice">
-              <h3>Logit Board</h3>
-              <p class="note">Every candidate token gets a score. Softmax turns scores into probabilities; sampling picks one and the loop repeats.</p>
+              <h3>Step 4 — Logits: who wins and by how much</h3>
+              <p class="note">Scores are converted to probabilities via softmax. The bar width is probability; the small number is the raw score. Change any slider above and watch both move. Click a row to force-pick that token.</p>
               <div class="logits" id="logits"></div>
             </div>
             <div class="slice">
-              <h3>What This Slice Represents</h3>
+              <h3>The loop in plain English</h3>
               <div class="legend">
-                <div><b>Embeddings</b>Tokens become numeric feature vectors, not dictionary definitions.</div>
-                <div><b>Attention</b>The current position copies useful context from earlier positions.</div>
-                <div><b>MLP</b>A feature mixer boosts patterns that the model learned during training.</div>
-                <div><b>Logits</b>Candidate next tokens are scored before probabilities exist.</div>
-                <div><b>Temperature</b>Higher values flatten probabilities and make odd tokens easier to pick.</div>
-                <div><b>Loop</b>The chosen token is appended, then the whole decoder slice runs again.</div>
+                <div><b>1. Tokenise</b>Text is split into chunks. Each chunk becomes a number, not a word.</div>
+                <div><b>2. Embed</b>Each token number maps to a feature vector — a rough fingerprint of its meaning.</div>
+                <div><b>3. Attend</b>The current position looks back and copies weighted fragments from earlier positions.</div>
+                <div><b>4. Mix</b>The attended context passes through a feed-forward layer that boosts learned patterns.</div>
+                <div><b>5. Score</b>Every possible next token gets a raw logit score; softmax turns scores into a probability distribution.</div>
+                <div><b>6. Sample</b>One token is drawn from the distribution, appended, and the whole pass runs again.</div>
               </div>
             </div>
           </div>
-          <div class="status" id="explain"></div>
         </div>
       </div>
     </section>
 
     <section class="panel">
-      <div class="panel-h"><h2>Human Decoder Controls</h2><small>you are the model</small></div>
+      <div class="panel-h"><h2>Step 5 — Sample &amp; Loop</h2><small>you play the model</small></div>
       <div class="panel-b controls">
         <div class="ask">
-          <b id="askTitle">AI asks:</b>
-          <p id="askText">Turn the dials so the next token distribution makes sense for the prompt.</p>
+          <b id="askTitle">Predicting next word…</b>
+          <div id="explain"></div>
+          <p id="askText" style="margin-top:8px"></p>
         </div>
         <div class="slice">
-          <h3>Sampling Controls</h3>
+          <h3>Sampling controls</h3>
+          <p class="note">Temperature flattens or sharpens the distribution. Top-k limits candidates. Low temp → model sounds confident; high temp → more varied.</p>
           <div class="dial-row">
             <span>temp</span>
             <input id="temp" type="range" min="0.35" max="1.8" step="0.05" value="0.8">
@@ -663,7 +671,8 @@
           </div>
         </div>
         <div class="slice">
-          <h3>Preset Personas</h3>
+          <h3>Preset personas (dial shortcuts)</h3>
+          <p class="note">Each persona snaps the feature dials to a pre-set pattern — try switching mid-run to steer the output.</p>
           <div class="pill-row">
             <button class="ghost" data-persona="plain">plain</button>
             <button class="ghost" data-persona="story">story</button>
@@ -672,7 +681,7 @@
           </div>
         </div>
         <div class="slice">
-          <h3>Trace</h3>
+          <h3>Live trace</h3>
           <div class="status" id="trace"></div>
         </div>
       </div>
@@ -976,10 +985,12 @@ function renderLoopStrip() {
 
   const layerForPhase = [0, 0, 1, 2, 3, 3][state.phase] || 0;
   const clsFor = layer => layer === layerForPhase ? "active" : (layer < layerForPhase ? "done" : "");
+  const topInputs = [...inputs].sort((a, b) => (b.attn || 0) - (a.attn || 0)).slice(0, 3);
+  const topOuts   = [...outs].sort((a, b) => (b.prob || 0) - (a.prob || 0)).slice(0, 3);
   const lines = [];
-  for (const a of inputs) for (const b of hiddenA) lines.push([a, b, Math.max(0.08, a.attn || 0), layerForPhase >= 1 && (a.attn || 0) > 0.18]);
-  for (const a of hiddenA) for (const b of hiddenB) lines.push([a, b, layerForPhase >= 2 ? 0.55 : 0.14, layerForPhase >= 2 && b.y === hiddenB[2].y]);
-  for (const a of hiddenB) for (const b of outs) lines.push([a, b, Math.max(0.08, b.prob || 0), layerForPhase >= 3 && b.prob === outs[0]?.prob]);
+  for (const a of topInputs) for (const b of hiddenA.slice(0, 3)) lines.push([a, b, Math.max(0.1, a.attn || 0), layerForPhase >= 1 && (a.attn || 0) > 0.2]);
+  for (const a of hiddenA.slice(0, 3)) for (const b of hiddenB.slice(0, 3)) lines.push([a, b, layerForPhase >= 2 ? 0.5 : 0.12, layerForPhase >= 2]);
+  for (const a of hiddenB.slice(0, 3)) for (const b of topOuts) lines.push([a, b, Math.max(0.1, b.prob || 0), layerForPhase >= 3 && b.prob === outs[0]?.prob]);
 
   const circles = (nodes, type, layer) => nodes.map(n => `
     <g>
@@ -989,10 +1000,10 @@ function renderLoopStrip() {
   `).join("");
 
   $("loopBody").innerHTML = `<svg class="network-svg" viewBox="0 0 1000 76" preserveAspectRatio="none" aria-hidden="true">
-    <text class="net-label" x="28" y="9">input tokens</text>
-    <text class="net-label" x="275" y="9">hidden slice</text>
-    <text class="net-label" x="505" y="9">activation / mixer</text>
-    <text class="net-label" x="770" y="9">output logits</text>
+    <text class="net-label" x="28" y="9">your prompt</text>
+    <text class="net-label" x="275" y="9">attention</text>
+    <text class="net-label" x="505" y="9">feature mix</text>
+    <text class="net-label" x="770" y="9">top picks</text>
     <rect class="activation-window" x="500" y="5" width="100" height="66" rx="12"/>
     ${lines.map(([a, b, strength, hot]) => `<line class="net-line ${hot ? "hot" : ""}" x1="${a.x + 8}" y1="${a.y}" x2="${b.x - 8}" y2="${b.y}" opacity="${(0.14 + strength * 0.86).toFixed(2)}" stroke-width="${(0.8 + strength * 4).toFixed(2)}"/>`).join("")}
     ${circles(inputs, "input", 0)}
@@ -1088,29 +1099,76 @@ function renderLogits() {
 
 function renderExplain() {
   const toks = allTokens();
-  const last = toks[toks.length - 1] || "(nothing)";
-  const top = probabilities()[0];
+  const last = toks[toks.length - 1] || "…";
+  const probs = probabilities();
+  const top = probs[0];
+  const second = probs[1];
   const attn = normalizedAttention();
-  const attended = allTokens()
+
+  const attended = toks
     .map((t, i) => ({ t, v: attn[i] || 0 }))
-    .sort((a, b) => b.v - a.v)[0];
-  const drivers = FEATURES
+    .sort((a, b) => b.v - a.v);
+  const topAttn = attended[0];
+  const secondAttn = attended[1];
+
+  const topVec = topAttn ? tokenVector(topAttn.t) : null;
+  const topFeature = topVec
+    ? FEATURES[topVec.indexOf(Math.max(...topVec))]
+    : null;
+
+  const sortedDials = FEATURES
     .map(f => ({ f, v: state.dials[f] }))
-    .sort((a, b) => b.v - a.v)
-    .slice(0, 2)
-    .map(d => `${d.f} ${d.v.toFixed(2)}`)
-    .join(", ");
-  $("askTitle").textContent = "AI asks the human decoder:";
-  $("askText").textContent = `The current last token is "${last}". Set attention, feature boosts, temperature, and top-k so the next-token distribution feels plausible.`;
-  $("explain").textContent = `Current slice: ${STAGES[state.phase][0]}. Top candidate is "${top.token}" at ${Math.round(top.prob * 100)} percent, but sampling may still choose another token.`;
+    .sort((a, b) => b.v - a.v);
+  const highDial = sortedDials[0];
+  const lowDial = sortedDials[sortedDials.length - 1];
+
+  const temp = Number($("temp").value);
+  const tempNote = temp > 1.15
+    ? "Temperature is high, so sampling may pick a surprising token."
+    : temp < 0.55
+    ? `Temperature is low — sampling will almost always pick "${top.token}".`
+    : "";
+
+  const topCandVec = top ? tokenVector(top.token) : null;
+  const topCandFeature = topCandVec
+    ? FEATURES[topCandVec.indexOf(Math.max(...topCandVec))]
+    : null;
+
+  const chainSentence = topAttn
+    ? `"${topAttn.t}" has the most attention (${Math.round(topAttn.v * 100)}%)${secondAttn ? ` followed by "${secondAttn.t}" (${Math.round(secondAttn.v * 100)}%)` : ""}.`
+    : "";
+
+  const featureSentence = topFeature
+    ? `"${topAttn.t}" is strongest in the ${topFeature} dimension.`
+    : "";
+
+  const dialSentence = highDial.v > 0.62
+    ? `Your ${highDial.f} dial is high (${highDial.v.toFixed(2)}), boosting words that are ${highDial.f}-heavy.`
+    : lowDial.v < 0.38
+    ? `Your ${lowDial.f} dial is low (${lowDial.v.toFixed(2)}), suppressing ${lowDial.f}-like words.`
+    : "Feature dials are near neutral.";
+
+  const resultSentence = top
+    ? `"${top.token}" is scoring highest at ${Math.round(top.prob * 100)}%${second ? ` — "${second.token}" is next at ${Math.round(second.prob * 100)}%` : ""}.`
+    : "";
+
+  const askSentence = top
+    ? `You are predicting the word after "${last}". Try boosting the ${topCandFeature || "object"} dial or raising attention on "${topAttn?.t || toks[0]}" to reinforce this result, or lower them to push a different candidate to the top.`
+    : "Tokenize a prompt to begin.";
+
+  $("askTitle").textContent = `Predicting the word after "${last}"`;
+  $("askText").textContent = askSentence;
+  $("explain").innerHTML = [chainSentence, featureSentence, dialSentence, resultSentence, tempNote]
+    .filter(Boolean)
+    .map(s => `<p style="margin:4px 0;color:var(--muted);font-size:12px;line-height:1.45">${esc(s)}</p>`)
+    .join("");
   $("trace").innerHTML = [
-    `Input tokens: ${state.baseTokens.length}`,
-    `Generated tokens: ${state.generated.length}`,
-    `Last sampled: ${state.lastPicked || "none"}`,
-    `Strongest attended token: ${attended ? `${attended.t} ${Math.round(attended.v * 100)}%` : "none"}`,
-    `Strongest dial influence: ${drivers}`,
-    `Visible layers: one attention head, one mixer, one logit board`,
-    `Not shown: billions of parameters, many layers, tokenizer details, training`
+    `Context window: ${toks.length} token${toks.length === 1 ? "" : "s"}`,
+    `Response so far: ${state.generated.length ? state.generated.join(" ") : "nothing yet"}`,
+    `Most attended: "${topAttn?.t}" (${Math.round((topAttn?.v || 0) * 100)}%)`,
+    `Top logit: "${top?.token}" score ${top?.score.toFixed(2)} → ${Math.round((top?.prob || 0) * 100)}% prob`,
+    `Dials (highest): ${highDial.f} ${highDial.v.toFixed(2)}, (lowest): ${lowDial.f} ${lowDial.v.toFixed(2)}`,
+    `Not modelled: sub-word tokenisation, layer stacking, residual stream, training`
   ].map(t => `<p>${esc(t)}</p>`).join("");
 }
 
@@ -1239,14 +1297,24 @@ function init() {
     $("prompt").value = PRESETS[Number(e.target.value)].text;
     loadPrompt();
   };
-  $("loadBtn").onclick = loadPrompt;
-  $("sampleBtn").onclick = pickSample;
+  $("loadBtn").onclick = () => {
+    loadPrompt();
+    $("loadBtn").classList.remove("pulse-hint");
+    $("sampleBtn").classList.add("pulse-hint");
+    if (state.tourStep === 1) { state.tourStep = 2; showTourStep(); }
+  };
+  $("sampleBtn").onclick = () => {
+    pickSample();
+    $("sampleBtn").classList.remove("pulse-hint");
+  };
   $("tourBtn").onclick = startTour;
   $("resetBtn").onclick = () => {
     if (state.auto) toggleAuto();
     $("prompt").value = PRESETS[Number($("preset").value)].text;
     state.dials = { object: .55, action: .35, place: .30, logic: .28, tone: .45 };
     loadPrompt();
+    $("loadBtn").classList.add("pulse-hint");
+    $("sampleBtn").classList.remove("pulse-hint");
   };
   $("autoBtn").onclick = toggleAuto;
   $("loopToggle").onclick = () => {
@@ -1262,6 +1330,7 @@ function init() {
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && state.tourStep >= 0) endTour();
   });
+  $("loadBtn").classList.add("pulse-hint");
   loadPrompt();
 }
 
