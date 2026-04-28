@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transformer Slice v2</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #050813;
+  --surface: #0b1426;
+  --surface2: #0f1a30;
+  --border: rgba(132, 177, 255, 0.13);
+  --text: #e0e7f3;
+  --muted: #91a0bb;
+  --amber: #ffd166;
+  --blue: #66d9ff;
+  --green: #7dffe1;
+  --purple: #b28cff;
+  --red: #ff6b9a;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+/* ── App shell ───────────────────────────────────────────────── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  height: 48px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.back {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.back:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.brand { flex: 1; }
+.brand b { font-size: 14px; color: var(--amber); letter-spacing: .04em; }
+.brand sup { font-size: 9px; color: var(--muted); }
+.brand span { color: var(--muted); font-size: 11px; margin-left: 8px; }
+.hdr-actions { display: flex; gap: 8px; }
+
+/* ── Chain strip ─────────────────────────────────────────────── */
+.chain-strip {
+  flex-shrink: 0;
+  height: 168px;
+  background: #080e1a;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.chain-strip svg { width: 100%; height: 100%; display: block; }
+
+/* Node & line styles (applied inline via SVG attributes + these classes) */
+.cn { transition: r .3s, opacity .3s; }
+.cn-ring { transition: opacity .3s; }
+.cl { transition: stroke-opacity .3s, stroke-width .3s; }
+@keyframes line-pulse {
+  0%   { stroke-opacity: .2; stroke-width: 1.5; }
+  35%  { stroke-opacity: 1;  stroke-width: 3.5; }
+  100% { stroke-opacity: .35; stroke-width: 1.5; }
+}
+.cl-pulse { animation: line-pulse .65s ease-out forwards; }
+
+/* ── Workspace ───────────────────────────────────────────────── */
+.workspace {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Step area ───────────────────────────────────────────────── */
+.step-area {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  padding: 20px 16px 20px 20px;
+  gap: 16px;
+}
+
+/* Progress rail */
+.progress-rail {
+  width: 52px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 4px;
+  gap: 0;
+}
+.rail-node {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  transition: border-color .2s, color .2s, background .2s;
+  user-select: none;
+  z-index: 1;
+}
+.rail-node.active {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(255, 209, 102, .1);
+  box-shadow: 0 0 0 4px rgba(255, 209, 102, .12);
+}
+.rail-node.done {
+  border-color: rgba(125, 255, 225, .4);
+  color: var(--green);
+  background: rgba(125, 255, 225, .06);
+}
+.rail-connector {
+  width: 2px;
+  height: 22px;
+  background: var(--border);
+}
+.rail-connector.done { background: rgba(125, 255, 225, .3); }
+
+/* ── Card ────────────────────────────────────────────────────── */
+.card {
+  flex: 1;
+  max-width: 740px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.card-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.card-header .step-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--amber);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.card-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.card-header p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.card-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+.card-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.progress-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background .2s;
+}
+.dot.active { background: var(--amber); }
+.dot.done { background: var(--green); }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 14px;
+  transition: opacity .15s, background .15s;
+}
+button:hover { opacity: .85; }
+.btn-primary {
+  background: var(--amber);
+  color: #111;
+  font-weight: 600;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.btn-ghost:hover { color: var(--text); border-color: rgba(132,177,255,.3); }
+.btn-green {
+  background: rgba(125, 255, 225, .14);
+  border: 1px solid rgba(125, 255, 225, .35);
+  color: var(--green);
+  font-weight: 600;
+}
+.btn-lg {
+  padding: 10px 22px;
+  font-size: 13px;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+.sidebar {
+  width: 290px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: #080e1a;
+}
+.sidebar-head {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+}
+.chat-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bubble-ai {
+  background: #131d30;
+  border: 1px solid var(--border);
+  border-radius: 12px 12px 12px 4px;
+  padding: 10px 13px;
+  max-width: 95%;
+  align-self: flex-start;
+}
+.bubble-ai .bubble-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.bubble-ai .bubble-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.55;
+}
+.bubble-human {
+  background: rgba(255, 209, 102, .08);
+  border: 1px solid rgba(255, 209, 102, .22);
+  border-radius: 12px 12px 4px 12px;
+  padding: 10px 13px;
+  max-width: 95%;
+  align-self: flex-end;
+}
+.bubble-human .bubble-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--amber);
+  margin-bottom: 5px;
+  text-align: right;
+}
+.bubble-human .bubble-text {
+  font-size: 13px;
+  color: var(--amber);
+  line-height: 1.55;
+  text-align: right;
+}
+.bubble-human .bubble-text .tok-out {
+  display: inline-block;
+  background: rgba(255, 209, 102, .15);
+  border: 1px solid rgba(255, 209, 102, .3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: 2px;
+  font-size: 12px;
+}
+.bubble-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 13px;
+  background: var(--amber);
+  border-radius: 2px;
+  animation: blink .8s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.context-meta {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.context-meta b { color: var(--text); }
+
+/* ── Step 1 — Tokenize ───────────────────────────────────────── */
+.scenario-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.scenario-btn {
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  transition: border-color .2s, color .2s;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.scenario-btn b { display: block; color: var(--text); margin-bottom: 2px; font-size: 12px; }
+.scenario-btn:hover { border-color: rgba(132,177,255,.3); color: var(--text); }
+.scenario-btn.active { border-color: var(--amber); color: var(--amber); }
+.scenario-btn.active b { color: var(--amber); }
+.prompt-edit {
+  margin-top: 4px;
+}
+.prompt-edit label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.prompt-edit textarea {
+  width: 100%;
+  background: #0a1020;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font: 14px/1.55 system-ui, sans-serif;
+  padding: 10px 13px;
+  resize: none;
+  height: 72px;
+  outline: none;
+}
+.prompt-edit textarea:focus { border-color: rgba(132,177,255,.35); }
+.token-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+.tok-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(132,177,255,.22);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 12px;
+  background: rgba(102,217,255,.06);
+  color: var(--text);
+  transition: border-color .3s, background .3s;
+}
+.tok-chip small {
+  font-size: 9px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.tok-chip.current {
+  border-color: rgba(255,209,102,.5);
+  background: rgba(255,209,102,.08);
+  color: var(--amber);
+}
+.tok-chip .attn-heat {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  flex-shrink: 0;
+}
+
+/* ── Step 2 — Embed ──────────────────────────────────────────── */
+.embed-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.embed-token {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.embed-token-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.embed-token-head b {
+  font-size: 13px;
+  color: var(--amber);
+}
+.embed-token-head span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.embed-bars { display: flex; flex-direction: column; gap: 5px; }
+.ebar {
+  display: grid;
+  grid-template-columns: 52px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+}
+.ebar span { font-size: 11px; color: var(--muted); }
+.ebar-track {
+  height: 6px;
+  background: rgba(255,255,255,.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.ebar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--blue);
+  transition: width .4s;
+}
+.ebar-fill.pos { background: var(--purple); }
+.ebar-val { font-size: 11px; color: var(--muted); text-align: right; }
+.pos-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.pos-label {
+  font-size: 10px;
+  color: var(--purple);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 4px;
+}
+
+/* ── Step 3 — Attention ──────────────────────────────────────── */
+.attn-explanation {
+  background: rgba(178, 140, 255, .07);
+  border: 1px solid rgba(178, 140, 255, .2);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.attn-explanation b { color: var(--purple); }
+.attn-rows { display: flex; flex-direction: column; gap: 8px; }
+.attn-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color .2s;
+}
+.attn-row:hover { border-color: rgba(178,140,255,.3); }
+.attn-row-label { font-size: 12px; }
+.attn-row-label b { color: var(--text); display: block; }
+.attn-row-label small { color: var(--muted); font-size: 10px; }
+.attn-row input[type=range] {
+  width: 100%;
+  accent-color: var(--purple);
+  height: 4px;
+  cursor: pointer;
+}
+.attn-readout { font-size: 12px; color: var(--purple); text-align: right; font-weight: 600; }
+.attn-token-preview {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.attn-token-preview h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* ── Step 4 — Mix/FFN ────────────────────────────────────────── */
+.mix-explanation {
+  background: rgba(125, 255, 225, .06);
+  border: 1px solid rgba(125, 255, 225, .18);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.mix-explanation b { color: var(--green); }
+.dial-rows { display: flex; flex-direction: column; gap: 8px; }
+.dial-row-item {
+  display: grid;
+  grid-template-columns: 70px 1fr 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color .2s;
+}
+.dial-row-item:hover { border-color: rgba(125,255,225,.3); }
+.dial-row-item span { font-size: 12px; color: var(--muted); }
+.dial-row-item input[type=range] {
+  width: 100%;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+.dial-readout { font-size: 12px; color: var(--green); font-weight: 600; text-align: right; }
+.ctx-vector {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ctx-vector h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.ctx-bars { display: flex; flex-direction: column; gap: 5px; }
+.cbar {
+  display: grid;
+  grid-template-columns: 52px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+}
+.cbar span { font-size: 11px; color: var(--muted); }
+.cbar-track { height: 6px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; }
+.cbar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--green);
+  transition: width .25s;
+}
+.cbar-val { font-size: 11px; color: var(--green); text-align: right; }
+
+/* ── Step 5 — Logits ─────────────────────────────────────────── */
+.logit-explanation {
+  background: rgba(102, 217, 255, .06);
+  border: 1px solid rgba(102, 217, 255, .18);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.logit-explanation b { color: var(--blue); }
+.logit-board { display: flex; flex-direction: column; gap: 7px; }
+.logit-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 64px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.logit-row:first-child {
+  border-color: rgba(102,217,255,.3);
+  background: rgba(102,217,255,.06);
+}
+.logit-row b { font-size: 13px; color: var(--text); }
+.logit-track { height: 6px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; }
+.logit-fill { height: 100%; border-radius: 3px; background: var(--blue); transition: width .3s; }
+.logit-row:first-child .logit-fill { background: var(--amber); }
+.logit-meta { text-align: right; }
+.logit-meta .lprob { font-size: 12px; font-weight: 600; color: var(--blue); }
+.logit-row:first-child .lprob { color: var(--amber); }
+.logit-meta .lscore { font-size: 10px; color: var(--muted); display: block; }
+
+/* ── Step 6 — Sample ─────────────────────────────────────────── */
+.sample-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.sample-ctrl-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.sample-ctrl-card h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.sample-ctrl-card input[type=range] {
+  width: 100%;
+  accent-color: var(--red);
+  cursor: pointer;
+}
+.sample-ctrl-card .ctrl-readout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sample-ctrl-card .ctrl-val { color: var(--red); font-weight: 600; font-size: 13px; }
+.distribution {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.distribution h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.dist-bars { display: flex; flex-direction: column; gap: 7px; }
+.dist-bar {
+  display: grid;
+  grid-template-columns: 86px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: border-color .15s, background .15s;
+}
+.dist-bar:hover { border-color: rgba(255,107,154,.3); background: rgba(255,107,154,.05); }
+.dist-bar b { font-size: 13px; color: var(--text); }
+.dist-track { height: 8px; background: rgba(255,255,255,.06); border-radius: 4px; overflow: hidden; }
+.dist-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--red);
+  transition: width .25s;
+}
+.dist-bar:first-child .dist-fill { background: var(--amber); }
+.dist-pct { font-size: 12px; font-weight: 600; color: var(--red); text-align: right; }
+.dist-bar:first-child .dist-pct { color: var(--amber); }
+.sample-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sample-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 10px;
+  line-height: 1.45;
+}
+
+/* ── Persona row ─────────────────────────────────────────────── */
+.persona-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.persona-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.persona-btn:hover { border-color: rgba(132,177,255,.3); color: var(--text); }
+.persona-btn.active { border-color: var(--amber); color: var(--amber); }
+
+/* ── Loop-again callout ──────────────────────────────────────── */
+.loop-callout {
+  background: rgba(255, 209, 102, .07);
+  border: 1px solid rgba(255, 209, 102, .2);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.loop-callout b { color: var(--amber); }
+
+/* ── Note boxes ──────────────────────────────────────────────── */
+.note-box {
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 13px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 14px;
+}
+.note-box b { color: var(--text); }
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(255,209,102,.55); }
+  70%  { box-shadow: 0 0 0 8px rgba(255,209,102,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,209,102,0); }
+}
+.pulse-hint { animation: pulse-ring 1.4s ease-out infinite; }
+
+@media (max-width: 1000px) {
+  .sidebar { width: 220px; }
+  .scenario-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .app { height: auto; min-height: 100%; }
+  .workspace { flex-direction: column; }
+  .sidebar { width: 100%; height: 200px; flex-shrink: 0; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <a class="back" href="../../index.html" title="Back to atlas">&larr;</a>
+    <div class="brand">
+      <b>Transformer Slice <sup>v2</sup></b>
+      <span>Step through a decoder pass. You are the model.</span>
+    </div>
+    <div class="hdr-actions">
+      <button class="btn-ghost" id="autoBtn">Auto-step</button>
+      <button class="btn-ghost" id="resetBtn">Reset</button>
+    </div>
+  </header>
+
+  <div class="chain-strip" id="chainStrip"></div>
+
+  <div class="workspace">
+    <div class="step-area">
+      <nav class="progress-rail" id="progressRail"></nav>
+      <div class="card" id="stepCard">
+        <div class="card-header" id="cardHeader">
+          <div class="step-label" id="cardStepLabel"></div>
+          <h2 id="cardTitle"></h2>
+          <p id="cardDesc"></p>
+        </div>
+        <div class="card-body" id="cardBody"></div>
+        <div class="card-footer" id="cardFooter"></div>
+      </div>
+    </div>
+    <aside class="sidebar">
+      <div class="sidebar-head">Decoder conversation</div>
+      <div class="chat-view" id="chatView"></div>
+      <div class="context-meta" id="contextMeta"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ── Constants ──────────────────────────────────────────────────────────── */
+const FEATURES = ["object", "action", "place", "logic", "tone"];
+
+const SCENARIOS = [
+  { label: "Fantasy sentence",  mode: "finish",  prompt: "The dragon opened the",     ai: "Complete the thought:" },
+  { label: "Code review",       mode: "finish",  prompt: "To fix the bug we should",  ai: "Complete the thought:" },
+  { label: "Weather report",    mode: "answer",  prompt: "What moves across the sky?", ai: "The AI asked:" },
+  { label: "Tiny mystery",      mode: "story",   prompt: "Behind the locked door was", ai: "Continue the story:" }
+];
+
+const VOCAB = [
+  ["door",       [1.0, .15, .25, .05, .20]],
+  ["sky",        [.55, .10, .95, .00, .42]],
+  ["map",        [.90, .08, .68, .40, .10]],
+  ["test",       [.55, .22, .05, .95, .02]],
+  ["reason",     [.20, .18, .04, 1.0, .18]],
+  ["because",    [.05, .10, .00, .95, .08]],
+  ["carefully",  [.05, .38, .05, .45, .70]],
+  ["bright",     [.18, .05, .40, .05, .88]],
+  ["strange",    [.26, .12, .34, .12, 1.0]],
+  ["engine",     [1.0, .45, .08, .78, .05]],
+  ["question",   [.25, .12, .02, .92, .25]],
+  ["forest",     [.60, .08, 1.0, .02, .55]],
+  ["window",     [1.0, .06, .45, .06, .28]],
+  ["whispered",  [.08, .88, .05, .03, .76]],
+  ["calculated", [.04, .92, .00, .96, .05]],
+  ["revealed",   [.18, .82, .16, .38, .62]],
+  ["small",      [.35, .04, .12, .08, .50]],
+  ["answer",     [.35, .16, .00, 1.0, .12]],
+  ["pattern",    [.72, .08, .10, .82, .28]],
+  ["lantern",    [1.0, .08, .45, .02, .72]],
+  ["city",       [.75, .07, 1.0, .08, .22]],
+  ["signal",     [.68, .34, .18, .80, .20]],
+  ["then",       [.05, .28, .00, .55, .12]],
+  ["again",      [.02, .32, .00, .45, .24]]
+].map(([token, vec]) => ({ token, vec }));
+
+const PERSONAS = {
+  plain:     { object: .48, action: .38, place: .22, logic: .45, tone: .20, temp: .75, topk: 4 },
+  story:     { object: .68, action: .55, place: .60, logic: .16, tone: .72, temp: .9,  topk: 5 },
+  technical: { object: .44, action: .42, place: .05, logic: .88, tone: .08, temp: .65, topk: 3 },
+  strange:   { object: .40, action: .35, place: .50, logic: .18, tone: .95, temp: 1.35, topk: 7 }
+};
+
+const STEP_META = [
+  { n: 1, id: "tokenize", label: "Tokenize",  icon: "T", color: "#ffd166" },
+  { n: 2, id: "embed",    label: "Embed",     icon: "E", color: "#66d9ff" },
+  { n: 3, id: "attend",   label: "Attend",    icon: "A", color: "#b28cff" },
+  { n: 4, id: "mix",      label: "Mix",       icon: "M", color: "#7dffe1" },
+  { n: 5, id: "score",    label: "Score",     icon: "S", color: "#ff9f66" },
+  { n: 6, id: "sample",   label: "Sample",    icon: "P", color: "#ff6b9a" }
+];
+
+/* ── State ──────────────────────────────────────────────────────────────── */
+const state = {
+  step: 1,
+  scenarioIdx: 0,
+  baseTokens: [],
+  generated: [],
+  attention: [],
+  dials: { object: .55, action: .35, place: .30, logic: .28, tone: .45 },
+  temp: 0.8,
+  topk: 5,
+  lastPicked: null,
+  tokenized: false,
+  auto: null,
+  autoGoal: 0,
+  loopCount: 0
+};
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function allTokens() { return [...state.baseTokens, ...state.generated]; }
+
+function tokenize(text) {
+  return (text.toLowerCase().match(/[a-z0-9']+|[.,!?;]/g) || []).slice(0, 18);
+}
+
+function hashToken(token) {
+  let h = 2166136261;
+  for (let i = 0; i < token.length; i++) h = Math.imul(h ^ token.charCodeAt(i), 16777619);
+  return Math.abs(h);
+}
+
+function tokenVector(token) {
+  const known = VOCAB.find(v => v.token === token);
+  if (known) return known.vec;
+  const h = hashToken(token);
+  const vowels = (token.match(/[aeiou]/g) || []).length;
+  return [
+    ((h % 31) / 30) * .65 + (token.length > 4 ? .20 : .05),
+    (((h >> 3) % 29) / 28) * .55,
+    (((h >> 6) % 23) / 22) * .55,
+    (/[0-9]/.test(token) ? .9 : ((h >> 9) % 17) / 24),
+    Math.min(1, .18 + vowels / Math.max(3, token.length))
+  ].map(v => clamp(v, 0, 1));
+}
+
+/* ── Scoring engine (same core as v1) ──────────────────────────────────── */
+function normalizedAttention() {
+  const toks = allTokens();
+  if (!toks.length) return [];
+  const raw = state.attention.slice(0, toks.length).map(v => Math.max(0.01, Number(v) || 0.01));
+  const sum = raw.reduce((a, b) => a + b, 0);
+  return raw.map(v => v / sum);
+}
+
+function contextVector() {
+  const toks = allTokens();
+  const attn = normalizedAttention();
+  const ctx = [0, 0, 0, 0, 0];
+  toks.forEach((tok, i) => {
+    const vec = tokenVector(tok);
+    FEATURES.forEach((_, j) => ctx[j] += vec[j] * (attn[i] || 0));
+  });
+  return ctx.map((v, i) => clamp(v * .65 + state.dials[FEATURES[i]] * .75, 0, 1.4));
+}
+
+function vectorDot(a, b) {
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
+}
+
+function candidateScores() {
+  const toks = allTokens();
+  const attn = normalizedAttention();
+  const ctx = contextVector();
+  const used = new Set(toks.slice(-4));
+  return VOCAB.map((cand, idx) => {
+    const contextFit = vectorDot(cand.vec, ctx);
+    const tokenChainFit = toks.reduce((sum, tok, i) => {
+      return sum + vectorDot(cand.vec, tokenVector(tok)) * (attn[i] || 0);
+    }, 0);
+    const dialBias = cand.vec.reduce((sum, v, i) => {
+      return sum + v * ((state.dials[FEATURES[i]] - 0.5) * 2.4);
+    }, 0);
+    const repeatPenalty = used.has(cand.token) ? -.65 : 0;
+    const rhythm = ((idx + (state.baseTokens.length + state.generated.length)) % 5 === 0) ? .05 : 0;
+    return { ...cand, score: contextFit * .35 + tokenChainFit * 1.55 + dialBias + repeatPenalty + rhythm };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function probabilities() {
+  const topK = Number(state.topk);
+  const temp = Math.max(.1, Number(state.temp));
+  const candidates = candidateScores().slice(0, topK);
+  const max = Math.max(...candidates.map(c => c.score));
+  const exps = candidates.map(c => Math.exp((c.score - max) / temp));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return candidates.map((c, i) => ({ ...c, prob: exps[i] / sum }));
+}
+
+function seedAttention() {
+  const toks = allTokens();
+  state.attention = toks.map((_, i) => {
+    const recency = (i + 1) / Math.max(1, toks.length);
+    return clamp(.25 + recency * .55, 0, 1);
+  });
+}
+
+function appendToken(token) {
+  state.generated.push(token);
+  state.lastPicked = token;
+  state.loopCount += 1;
+  seedAttention();
+  goToStep(3);
+}
+
+function pickSample() {
+  const probs = probabilities();
+  let r = Math.random();
+  let picked = probs[probs.length - 1];
+  for (const p of probs) { r -= p.prob; if (r <= 0) { picked = p; break; } }
+  appendToken(picked.token);
+}
+
+/* ── Neural chain strip ─────────────────────────────────────────────────── */
+const STEP_COLORS = ["#ffd166", "#66d9ff", "#b28cff", "#7dffe1", "#ff9f66", "#ff6b9a"];
+// 6 columns, 4 nodes each. cx = column centre x, ny = node y positions
+const COL_CX  = [78, 240, 402, 564, 726, 888];
+const NODE_NY = [32, 62, 98, 128]; // 4 rows inside 168px strip (top labels at y~14)
+
+/* Compute per-column, per-node brightness weights for the current state */
+function columnWeights() {
+  const toks = allTokens();
+  const norm = normalizedAttention();
+  const probs = toks.length ? probabilities() : [];
+  const ctx = contextVector();
+
+  // col 0 — Tokenize: last 4 tokens, weight = attention
+  const c0 = NODE_NY.map((_, ni) => {
+    const ti = Math.max(0, toks.length - 4) + ni;
+    return ti < toks.length ? (norm[ti] || 0) : 0;
+  });
+
+  // col 1 — Embed: feature dimensions weighted by context vector
+  const c1 = NODE_NY.map((_, ni) => ni < 5 ? clamp(ctx[ni], 0, 1) : 0);
+
+  // col 2 — Attend: Q/K/V/softmax — weight by how active each concept is
+  const attnActivity = norm.reduce((a, b) => a + b, 0) / Math.max(1, norm.length);
+  const c2 = [attnActivity, attnActivity * .85, attnActivity * .7, attnActivity * .55];
+
+  // col 3 — Mix: feature activations after FFN
+  const c3 = NODE_NY.map((_, ni) => ni < 5 ? clamp(ctx[ni] * 1.1, 0, 1) : 0);
+
+  // col 4 — Score: top logit activations
+  const c4 = NODE_NY.map((_, ni) => probs[ni] ? probs[ni].prob * 3.5 : 0.1);
+
+  // col 5 — Sample: top candidate probabilities
+  const c5 = NODE_NY.map((_, ni) => probs[ni] ? probs[ni].prob * 3.5 : 0.1);
+
+  return [c0, c1, c2, c3, c4, c5];
+}
+
+function renderChainStrip() {
+  const s = state.step - 1; // 0-indexed active column
+  const wts = columnWeights();
+  const loopActive = state.loopCount > 0;
+  const svgH = 168;
+  const vbH = 170;
+
+  // Stage labels
+  const labelNames = ["Tokenize", "Embed", "Attend", "Mix / FFN", "Score", "Sample"];
+  const labelDescs = ["split text", "→ vectors", "Q·K·V", "feed-fwd", "logits", "pick token"];
+
+  let svg = `<svg viewBox="0 0 1000 ${vbH}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ah" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0 0,6 3,0 6" fill="#3a4f70" opacity=".8"/>
+    </marker>
+    <marker id="ah-hot" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0 0,6 3,0 6" fill="#ffffff" opacity=".9"/>
+    </marker>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-sm" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>`;
+
+  // ── inter-column connection lines ────────────────────────────────────────
+  for (let ci = 0; ci < 5; ci++) {
+    const x1 = COL_CX[ci];
+    const x2 = COL_CX[ci + 1];
+    const colDone = ci < s;
+    const colActive = ci === s - 1 || ci === s;  // lines entering or leaving active col
+    const pathColor = STEP_COLORS[ci + 1];
+    const id = `cl${ci+1}${ci+2}`;
+
+    // Connect each node in ci to each node in ci+1 with weight-based opacity
+    for (let ni = 0; ni < 4; ni++) {
+      for (let nj = 0; nj < 4; nj++) {
+        const w = colActive
+          ? Math.sqrt(wts[ci][ni] * wts[ci+1][nj])
+          : (colDone ? 0.18 : 0.05);
+        const opacity = colDone ? clamp(w + 0.12, 0.08, 0.55) : clamp(w, 0.04, colActive ? 0.85 : 0.09);
+        const sw = colActive ? clamp(w * 3, 0.4, 2.5) : 0.6;
+        const hot = colActive && opacity > 0.45;
+        svg += `<line x1="${x1+8}" y1="${NODE_NY[ni]}" x2="${x2-8}" y2="${NODE_NY[nj]}"
+          stroke="${colDone ? pathColor : (colActive ? pathColor : '#2a3550')}"
+          stroke-width="${sw}" stroke-opacity="${opacity.toFixed(2)}"
+          ${hot ? `filter="url(#glow-sm)" marker-end="url(#ah-hot)"` : `marker-end="url(#ah)"`}/>`;
+      }
+    }
+    // Bright "main path" line on top (bold dominant route)
+    if (colDone || colActive) {
+      const ni = wts[ci].indexOf(Math.max(...wts[ci]));
+      const nj = wts[ci+1].indexOf(Math.max(...wts[ci+1]));
+      const op = colActive ? 0.9 : 0.5;
+      svg += `<line id="${id}" class="cl" x1="${x1+8}" y1="${NODE_NY[ni]}" x2="${x2-8}" y2="${NODE_NY[nj]}"
+        stroke="${pathColor}" stroke-width="${colActive ? 2.8 : 1.8}" stroke-opacity="${op}"
+        filter="${colActive ? 'url(#glow-sm)' : ''}" marker-end="url(#ah-hot)"/>`;
+    } else {
+      svg += `<line id="${id}" class="cl" x1="${x1+8}" y1="${NODE_NY[1]}" x2="${x2-8}" y2="${NODE_NY[1]}"
+        stroke="#2a3550" stroke-width="0.8" stroke-opacity="0.2" marker-end="url(#ah)"/>`;
+    }
+  }
+
+  // ── loop-back path (Sample → Attend) ─────────────────────────────────────
+  const lx1 = COL_CX[5] + 8;
+  const lx2 = COL_CX[2] - 8;
+  const loopNi = wts[5].indexOf(Math.max(...wts[5]));
+  const loopNj = wts[2].indexOf(Math.max(...wts[2]));
+  const ly1 = NODE_NY[loopNi];
+  const ly2 = NODE_NY[loopNj];
+  svg += `<path id="cl63" class="cl" fill="none"
+    d="M${lx1},${ly1} C${lx1+45},${ly1} ${lx1+55},${vbH-8} ${(lx1+lx2)/2},${vbH-8} C${lx2-55},${vbH-8} ${lx2-45},${ly2} ${lx2},${ly2}"
+    stroke="${loopActive ? '#b28cff' : '#1e2d48'}"
+    stroke-width="${loopActive ? 2 : 1}" stroke-opacity="${loopActive ? .7 : .2}"
+    stroke-dasharray="6 4"
+    ${loopActive ? 'filter="url(#glow-sm)"' : ''}
+    marker-end="${loopActive ? 'url(#ah-hot)' : 'url(#ah)'}"/>`;
+
+  // ── nodes ────────────────────────────────────────────────────────────────
+  for (let ci = 0; ci < 6; ci++) {
+    const cx = COL_CX[ci];
+    const color = STEP_COLORS[ci];
+    const isActive = ci === s;
+    const isDone = ci < s;
+    const baseOpacity = isActive ? 1 : (isDone ? 0.65 : 0.22);
+
+    // Column label
+    svg += `<text x="${cx}" y="14" text-anchor="middle" font-size="10" font-weight="700"
+      fill="${isActive ? color : (isDone ? color + 'bb' : '#3d4f6a')}"
+      font-family="system-ui,sans-serif" style="cursor:pointer" onclick="goToStep(${ci+1})"
+    >${labelNames[ci]}</text>`;
+    svg += `<text x="${cx}" y="24" text-anchor="middle" font-size="8"
+      fill="${isActive ? color + 'cc' : '#2a3a55'}"
+      font-family="system-ui,sans-serif">${labelDescs[ci]}</text>`;
+
+    for (let ni = 0; ni < 4; ni++) {
+      const cy = NODE_NY[ni];
+      const w = clamp(wts[ci][ni], 0, 1);
+      const r = isActive ? clamp(5 + w * 6, 5, 11) : (isDone ? clamp(4 + w * 3, 4, 7) : 4);
+      const opacity = isActive ? clamp(0.4 + w * 0.6, 0.4, 1) : (isDone ? clamp(0.25 + w * 0.45, 0.22, 0.7) : 0.18);
+      const fill = isActive ? color : (isDone ? color : "#1a2640");
+      const stroke = isActive ? color : (isDone ? color + "80" : "#2a3550");
+      const gf = isActive && w > 0.5 ? ' filter="url(#glow)"' : (isActive ? ' filter="url(#glow-sm)"' : "");
+      svg += `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}"
+        fill="${fill}" stroke="${stroke}" stroke-width="${isActive ? 1.5 : 0.8}"
+        opacity="${opacity.toFixed(2)}"${gf} style="cursor:pointer" onclick="goToStep(${ci+1})"/>`;
+    }
+  }
+
+  svg += `</svg>`;
+  $("chainStrip").innerHTML = svg;
+}
+
+function pulseLineId(id) {
+  const el = $("chainStrip").querySelector(`#${id}`);
+  if (!el) return;
+  el.classList.remove("cl-pulse");
+  void el.offsetWidth;
+  el.classList.add("cl-pulse");
+  setTimeout(() => el.classList.remove("cl-pulse"), 700);
+}
+
+function setCardHeader(stepN, total, title, desc) {
+  $("cardStepLabel").textContent = `Step ${stepN} of ${total}${state.loopCount > 0 && stepN >= 3 ? ` · loop ${state.loopCount}` : ""}`;
+  $("cardTitle").textContent = title;
+  $("cardDesc").innerHTML = desc;
+}
+
+/* ── Progress rail ──────────────────────────────────────────────────────── */
+function renderProgressRail() {
+  let html = "";
+  STEP_META.forEach((m, i) => {
+    const isActive = m.n === state.step;
+    const isDone = m.n < state.step;
+    const cls = isActive ? "active" : (isDone ? "done" : "");
+    html += `<div class="rail-node ${cls}" onclick="goToStep(${m.n})" title="${esc(m.label)}">${m.n}</div>`;
+    if (i < STEP_META.length - 1) {
+      html += `<div class="rail-connector ${isDone ? 'done' : ''}"></div>`;
+    }
+  });
+  $("progressRail").innerHTML = html;
+}
+
+/* ── Card footer (shared) ───────────────────────────────────────────────── */
+function renderCardFooter(nextLabel, showBack, onNext) {
+  const dots = STEP_META.map(m => {
+    const cls = m.n === state.step ? "active" : (m.n < state.step ? "done" : "");
+    return `<div class="dot ${cls}"></div>`;
+  }).join("");
+
+  $("cardFooter").innerHTML = `
+    ${showBack ? `<button class="btn-ghost" id="backBtn">← Back</button>` : `<div></div>`}
+    <div class="progress-dots">${dots}</div>
+    <button class="btn-primary btn-lg ${!onNext ? 'pulse-hint' : ''}" id="nextBtn">${esc(nextLabel)}</button>
+  `;
+  if (showBack) $("backBtn").onclick = () => goToStep(state.step - 1);
+  if (onNext) $("nextBtn").onclick = onNext;
+}
+
+/* ── Step 1: Tokenize ───────────────────────────────────────────────────── */
+function renderStep1() {
+  const sc = SCENARIOS[state.scenarioIdx];
+  const toks = state.baseTokens;
+
+  setCardHeader(1, 6, "Tokenize — split text into tokens",
+    "Choose a scenario. The prompt becomes numbered token chips — these are the model's input, not the raw text.");
+  $("cardBody").innerHTML = `
+    <div class="scenario-grid" id="scenarioGrid">
+      ${SCENARIOS.map((s, i) => `
+        <button class="scenario-btn ${i === state.scenarioIdx ? 'active' : ''}" data-idx="${i}">
+          <b>${esc(s.label)}</b>${esc(s.mode === 'finish' ? 'Finish the sentence' : s.mode === 'answer' ? 'Answer the question' : 'Continue the story')}
+        </button>
+      `).join("")}
+    </div>
+    <div class="prompt-edit">
+      <label>Prompt text (editable)</label>
+      <textarea id="promptText">${esc(sc.prompt)}</textarea>
+    </div>
+    <div class="token-chips-row" id="tokenChipsRow">
+      ${toks.length ? toks.map((t, i) => `<span class="tok-chip ${i === toks.length-1 ? 'current' : ''}">${esc(t)}<small>${i}</small></span>`).join("") : `<span style="color:var(--muted);font-size:12px">Click "Tokenize prompt" to split the text.</span>`}
+    </div>
+    <div class="note-box">
+      <b>What's happening:</b> In a real model, text is split into subword pieces using Byte-Pair Encoding (BPE) and each piece maps to an integer ID. Here we split on words for clarity. The integer ID has no meaning on its own — that's what the embedding step fixes.
+    </div>
+  `;
+
+  document.querySelectorAll(".scenario-btn").forEach(btn => {
+    btn.onclick = () => {
+      state.scenarioIdx = Number(btn.dataset.idx);
+      $("promptText").value = SCENARIOS[state.scenarioIdx].prompt;
+      renderStep1();
+      renderSidebar();
+      pulseLineId("cl12");
+    };
+  });
+
+  renderCardFooter("Tokenize prompt →", false, () => {
+    state.baseTokens = tokenize($("promptText").value || SCENARIOS[state.scenarioIdx].prompt);
+    state.generated = [];
+    state.tokenized = true;
+    seedAttention();
+    renderStep1();
+    renderChainStrip();
+    renderSidebar();
+    pulseLineId("cl12");
+    setTimeout(() => goToStep(2), 350);
+  });
+}
+
+/* ── Step 2: Embed + Positional Encoding ────────────────────────────────── */
+function renderStep2() {
+  const toks = allTokens();
+
+  setCardHeader(2, 6, "Embed — tokens become feature vectors",
+    "Each token maps to a vector of numbers that encodes rough meaning. Position encoding is then added so the model knows word order.");
+  $("cardBody").innerHTML = `
+    <div class="embed-grid">
+      ${toks.map((tok, pos) => {
+        const vec = tokenVector(tok);
+        const posOffset = FEATURES.map((_, j) => ((Math.sin(pos / Math.pow(10000, 2*j/5)) + 1) / 2) * 0.15);
+        return `<div class="embed-token">
+          <div class="embed-token-head">
+            <b>${esc(tok)}</b>
+            <span>token ${pos} · ID ~${hashToken(tok) % 32000}</span>
+          </div>
+          <div class="embed-bars">
+            ${FEATURES.map((f, j) => `
+              <div class="ebar">
+                <span>${f}</span>
+                <div class="ebar-track"><div class="ebar-fill" style="width:${Math.round(vec[j]*100)}%"></div></div>
+                <span class="ebar-val">${vec[j].toFixed(2)}</span>
+              </div>
+            `).join("")}
+          </div>
+          <div class="pos-row">
+            <div class="pos-label">+ positional encoding (pos ${pos})</div>
+            <div class="embed-bars">
+              ${FEATURES.map((f, j) => `
+                <div class="ebar">
+                  <span>${f}</span>
+                  <div class="ebar-track"><div class="ebar-fill pos" style="width:${Math.round(posOffset[j]*100)}%"></div></div>
+                  <span class="ebar-val">+${posOffset[j].toFixed(2)}</span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+    <div class="note-box">
+      <b>Why position encoding?</b> The transformer sees all tokens in parallel — it has no built-in sense of order. A small sine-wave offset (shown in purple) is added to each vector so that "dog bites man" and "man bites dog" produce different representations.
+    </div>
+  `;
+
+  renderCardFooter("Set attention weights →", true, () => goToStep(3));
+}
+
+/* ── Step 3: Self-Attention (Q·K framing) ───────────────────────────────── */
+function renderStep3() {
+  const toks = allTokens();
+  const norm = normalizedAttention();
+  const top = probabilities()[0];
+
+  setCardHeader(3, 6, "Self-Attention — what to copy from context",
+    `The current position forms a <b style="color:var(--purple)">query</b>: "what kind of information do I need?" Each past token is a <b style="color:var(--purple)">key</b>. Higher relevance = more of that token's value is copied forward.`);
+  $("cardBody").innerHTML = `
+    ${state.loopCount > 0 ? `<div class="loop-callout">The last sampled token was <b>"${esc(state.lastPicked)}"</b>. It has been appended to the context. You are now predicting token <b>${state.generated.length + state.baseTokens.length}</b>.</div>` : ""}
+    <div class="attn-explanation">
+      <b>Q · K dot-product:</b> In a real model, each token creates a Query vector (what am I searching for?) and a Key vector (what do I contain?). Their dot product is the attention score. Here you set these scores directly — drag up to say "yes, copy from this token", drag down to say "less relevant".
+    </div>
+    <div class="attn-rows" id="attnRows">
+      ${toks.map((tok, i) => `
+        <div class="attn-row">
+          <div class="attn-row-label">
+            <b>${esc(tok)}</b>
+            <small>token ${i}${i === toks.length-1 ? ' (latest)' : ''}</small>
+          </div>
+          <input type="range" min="0" max="1" step="0.01" value="${state.attention[i] ?? .5}" data-attn="${i}">
+          <span class="attn-readout" id="ar${i}">${Math.round((norm[i]||0)*100)}%</span>
+        </div>
+      `).join("")}
+    </div>
+    <div class="attn-token-preview">
+      <h4>Token chain — heat = attention weight</h4>
+      <div class="token-chips-row" id="attnChipsPreview"></div>
+    </div>
+    <div class="persona-row">
+      ${["plain","story","technical","strange"].map(p => `<button class="persona-btn" data-persona="${p}">${p}</button>`).join("")}
+    </div>
+    <div class="note-box">
+      <b>Top candidate so far:</b> "${esc(top?.token || "…")}" at ${Math.round((top?.prob||0)*100)}% — adjust weights and watch the Score step update.
+    </div>
+  `;
+
+  renderAttnChips();
+
+  document.querySelectorAll("[data-attn]").forEach(input => {
+    input.oninput = e => {
+      state.attention[Number(e.target.dataset.attn)] = Number(e.target.value);
+      renderAttnReadouts();
+      renderAttnChips();
+      renderSidebar();
+      pulseLineId("cl23");
+    };
+  });
+
+  document.querySelectorAll("[data-persona]").forEach(btn => {
+    btn.onclick = () => applyPersona(btn.dataset.persona);
+  });
+
+  renderCardFooter("Apply weights — mix features →", true, () => goToStep(4));
+}
+
+function renderAttnReadouts() {
+  const norm = normalizedAttention();
+  allTokens().forEach((_, i) => {
+    const el = $(`ar${i}`);
+    if (el) el.textContent = Math.round((norm[i]||0)*100) + "%";
+  });
+}
+
+function renderAttnChips() {
+  const toks = allTokens();
+  const norm = normalizedAttention();
+  const el = $("attnChipsPreview");
+  if (!el) return;
+  el.innerHTML = toks.map((t, i) => {
+    const a = norm[i] || 0;
+    const heat = Math.round(a * 100);
+    return `<span class="tok-chip ${i===toks.length-1?'current':''}"
+      style="border-color:rgba(178,140,255,${0.15+a*.8});background:rgba(178,140,255,${0.04+a*.18})">
+      ${esc(t)}<small>${i}</small>
+      <span class="attn-heat" style="background:rgba(178,140,255,${a});width:${4+a*6}px;height:${4+a*6}px"></span>
+      <span style="font-size:9px;color:var(--purple)">${heat}%</span>
+    </span>`;
+  }).join("");
+}
+
+/* ── Step 4: FFN / Feature Mix ──────────────────────────────────────────── */
+function renderStep4() {
+  const ctx = contextVector();
+
+  setCardHeader(4, 6, "Feature Mix — the feed-forward layer",
+    "The attended context passes through a feed-forward network that boosts learned patterns. These dials represent broad feature dimensions the model might amplify.");
+  $("cardBody").innerHTML = `
+    <div class="mix-explanation">
+      <b>FFN as associative memory:</b> The feed-forward network holds roughly 2/3 of a real model's parameters. It acts like a key-value memory: input patterns activate stored knowledge. "object" up → the network amplifies noun-like representations. "logic" up → it amplifies relational patterns.
+    </div>
+    <div class="dial-rows" id="dialRows">
+      ${FEATURES.map(f => `
+        <div class="dial-row-item">
+          <span>${f}</span>
+          <input type="range" min="0" max="1" step="0.01" value="${state.dials[f]}" data-dial="${f}">
+          <span class="dial-readout" id="dr-${f}">${state.dials[f].toFixed(2)}</span>
+        </div>
+      `).join("")}
+    </div>
+    <div class="ctx-vector">
+      <h4>Resulting context vector (attention × embeddings × dials)</h4>
+      <div class="ctx-bars" id="ctxBars">
+        ${FEATURES.map((f, i) => `
+          <div class="cbar">
+            <span>${f}</span>
+            <div class="cbar-track"><div class="cbar-fill" id="cb-${f}" style="width:${Math.round(clamp(ctx[i],0,1)*100)}%"></div></div>
+            <span class="cbar-val" id="cv-${f}">${ctx[i].toFixed(2)}</span>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+    <div class="persona-row">
+      ${["plain","story","technical","strange"].map(p => `<button class="persona-btn" data-persona="${p}">${p}</button>`).join("")}
+    </div>
+    <div class="note-box">
+      <b>Residual connection:</b> In a real transformer, the output is added back to the input: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px">output = x + FFN(x)</code>. This means the embedding information is never lost — the network only adds a delta.
+    </div>
+  `;
+
+  document.querySelectorAll("[data-dial]").forEach(input => {
+    input.oninput = e => {
+      state.dials[e.target.dataset.dial] = Number(e.target.value);
+      renderDialReadouts();
+      renderSidebar();
+      pulseLineId("cl34");
+    };
+  });
+
+  document.querySelectorAll("[data-persona]").forEach(btn => {
+    btn.onclick = () => applyPersona(btn.dataset.persona);
+  });
+
+  renderCardFooter("Score candidates →", true, () => goToStep(5));
+}
+
+function renderDialReadouts() {
+  const ctx = contextVector();
+  FEATURES.forEach((f, i) => {
+    const dr = $(`dr-${f}`); if (dr) dr.textContent = state.dials[f].toFixed(2);
+    const cb = $(`cb-${f}`); if (cb) cb.style.width = Math.round(clamp(ctx[i],0,1)*100) + "%";
+    const cv = $(`cv-${f}`); if (cv) cv.textContent = ctx[i].toFixed(2);
+  });
+}
+
+/* ── Step 5: Logits / LM Head ───────────────────────────────────────────── */
+function renderStep5() {
+  const probs = probabilities();
+  const top = probs[0];
+
+  setCardHeader(5, 6, "Score — logits and the LM Head",
+    `The context vector is projected against every vocabulary entry by a large weight matrix (the LM Head). Each token gets a raw score — a <b style="color:var(--blue)">logit</b>. Softmax will turn these into probabilities in the next step.`);
+  $("cardBody").innerHTML = `
+    <div class="logit-explanation">
+      <b>LM Head:</b> A single linear layer: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px">logits = context_vector × W_vocab</code>. In GPT-3 this matrix is 12,288 × 50,257 — one row per vocabulary token. Here we score ${VOCAB.length} toy tokens. Go back to steps 3 or 4 to change what ranks highest.
+    </div>
+    <div class="logit-board">
+      ${probs.map((p, i) => `
+        <div class="logit-row">
+          <b>${esc(p.token)}</b>
+          <div class="logit-track"><div class="logit-fill" style="width:${Math.max(2,Math.round(p.prob*100))}%"></div></div>
+          <div class="logit-meta">
+            <span class="lprob">${Math.round(p.prob*100)}%</span>
+            <span class="lscore">score ${p.score.toFixed(2)}</span>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+    <div class="note-box">
+      <b>Top candidate: "${esc(top?.token || "…")}"</b> — but these are pre-sampling probabilities. Temperature and top-k in the next step will reshape this distribution before anything is actually chosen.
+    </div>
+  `;
+
+  renderCardFooter("Set sampling params →", true, () => goToStep(6));
+}
+
+/* ── Step 6: Sample ─────────────────────────────────────────────────────── */
+function renderStep6() {
+  const probs = probabilities();
+  const topRaw = candidateScores()[0];
+
+  setCardHeader(6, 6, "Sample — choose the next token",
+    "Softmax converts logit scores to probabilities. Temperature and top-k reshape the distribution before one token is drawn. Then the loop restarts from Attend with the new token appended.");
+  $("cardBody").innerHTML = `
+    <div class="sample-controls">
+      <div class="sample-ctrl-card">
+        <h4>Temperature</h4>
+        <input type="range" id="tempSlider" min="0.35" max="1.8" step="0.05" value="${state.temp}">
+        <div class="ctrl-readout">
+          <span>${state.temp < .65 ? "Low → confident, predictable" : state.temp > 1.15 ? "High → creative, surprising" : "Balanced"}</span>
+          <span class="ctrl-val" id="tempVal">${Number(state.temp).toFixed(2)}</span>
+        </div>
+      </div>
+      <div class="sample-ctrl-card">
+        <h4>Top-k</h4>
+        <input type="range" id="topkSlider" min="2" max="8" step="1" value="${state.topk}">
+        <div class="ctrl-readout">
+          <span>${state.topk <= 3 ? "Narrow — fewer options" : state.topk >= 7 ? "Wide — many options" : "Standard"}</span>
+          <span class="ctrl-val" id="topkVal">${state.topk}</span>
+        </div>
+      </div>
+    </div>
+    <div class="distribution">
+      <h4>Distribution after softmax — click a bar to force-pick that token</h4>
+      <div class="dist-bars" id="distBars"></div>
+    </div>
+    <div class="sample-actions">
+      <button class="btn-green btn-lg" id="randomSampleBtn">Let the model choose</button>
+    </div>
+    <p class="sample-note">
+      "Let the model choose" draws randomly from the distribution above — the top token does not always win.
+      Click any bar to override and force-pick that token.
+    </p>
+  `;
+
+  renderDistribution();
+
+  $("tempSlider").oninput = e => {
+    state.temp = Number(e.target.value);
+    $("tempVal").textContent = Number(state.temp).toFixed(2);
+    $("tempSlider").nextElementSibling.querySelector("span:first-child").textContent =
+      state.temp < .65 ? "Low → confident, predictable" : state.temp > 1.15 ? "High → creative, surprising" : "Balanced";
+    renderDistribution();
+    pulseLineId("cl56");
+  };
+
+  $("topkSlider").oninput = e => {
+    state.topk = Number(e.target.value);
+    $("topkVal").textContent = state.topk;
+    $("topkSlider").nextElementSibling.querySelector("span:first-child").textContent =
+      state.topk <= 3 ? "Narrow — fewer options" : state.topk >= 7 ? "Wide — many options" : "Standard";
+    renderDistribution();
+    pulseLineId("cl56");
+  };
+
+  $("randomSampleBtn").onclick = () => {
+    pulseLineId("cl63");
+    setTimeout(pickSample, 300);
+  };
+
+  renderCardFooter("← Adjust mix", true, () => goToStep(4));
+  $("nextBtn").textContent = "← Adjust mix";
+}
+
+function renderDistribution() {
+  const probs = probabilities();
+  const el = $("distBars");
+  if (!el) return;
+  el.innerHTML = probs.map(p => `
+    <div class="dist-bar" data-pick="${esc(p.token)}">
+      <b>${esc(p.token)}</b>
+      <div class="dist-track"><div class="dist-fill" style="width:${Math.max(2,Math.round(p.prob*100))}%"></div></div>
+      <span class="dist-pct">${Math.round(p.prob*100)}%</span>
+    </div>
+  `).join("");
+  el.querySelectorAll("[data-pick]").forEach(bar => {
+    bar.onclick = () => {
+      pulseLineId("cl63");
+      setTimeout(() => appendToken(bar.dataset.pick), 300);
+    };
+  });
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+function renderSidebar() {
+  const sc = SCENARIOS[state.scenarioIdx];
+  const toks = allTokens();
+
+  const generatedHtml = state.generated.length
+    ? state.generated.map(t => `<span class="tok-out">${esc(t)}</span>`).join(" ")
+    : `<span class="bubble-cursor"></span>`;
+
+  $("chatView").innerHTML = `
+    <div class="bubble-ai">
+      <div class="bubble-label">${esc(sc.ai)}</div>
+      <div class="bubble-text">${esc(sc.prompt)}</div>
+    </div>
+    <div class="bubble-human">
+      <div class="bubble-label">You (the decoder)</div>
+      <div class="bubble-text">${generatedHtml}</div>
+    </div>
+  `;
+
+  const topCandidate = toks.length ? probabilities()[0] : null;
+  const norm = normalizedAttention();
+  const topAttn = toks.map((t, i) => ({ t, v: norm[i]||0 })).sort((a, b) => b.v - a.v)[0];
+
+  $("contextMeta").innerHTML = `
+    <div>Context: <b>${toks.length} token${toks.length === 1 ? "" : "s"}</b></div>
+    <div>Generated: <b>${state.generated.length}</b></div>
+    ${topAttn ? `<div>Top attention: <b>${esc(topAttn.t)}</b> ${Math.round(topAttn.v*100)}%</div>` : ""}
+    ${topCandidate ? `<div>Leading candidate: <b>${esc(topCandidate.token)}</b> ${Math.round(topCandidate.prob*100)}%</div>` : ""}
+  `;
+}
+
+/* ── Step dispatcher ─────────────────────────────────────────────────────── */
+function goToStep(n) {
+  if (n < 1) n = 1;
+  if (n > 6) n = 6;
+  if (n === 2 && !state.tokenized) { goToStep(1); return; }
+  if (n > 2 && !state.tokenized) { goToStep(1); return; }
+
+  state.step = n;
+  renderChainStrip();
+  renderProgressRail();
+  renderSidebar();
+
+  const renders = [null, renderStep1, renderStep2, renderStep3, renderStep4, renderStep5, renderStep6];
+  renders[n]();
+}
+
+/* ── Persona ─────────────────────────────────────────────────────────────── */
+function applyPersona(name) {
+  const p = PERSONAS[name];
+  if (!p) return;
+  FEATURES.forEach(f => state.dials[f] = p[f]);
+  state.temp = p.temp;
+  state.topk = p.topk;
+  document.querySelectorAll("[data-persona]").forEach(b => b.classList.toggle("active", b.dataset.persona === name));
+  renderDialReadouts();
+  renderAttnChips();
+  renderSidebar();
+  pulseLineId("cl34");
+  pulseLineId("cl45");
+}
+
+/* ── Auto-step ──────────────────────────────────────────────────────────── */
+function toggleAuto() {
+  if (state.auto) {
+    clearInterval(state.auto);
+    state.auto = null;
+    $("autoBtn").textContent = "Auto-step";
+    return;
+  }
+  if (!state.tokenized) { goToStep(1); return; }
+  $("autoBtn").textContent = "Stop auto";
+  state.autoGoal = state.generated.length + 8;
+  const speed = 900;
+
+  const runPass = () => {
+    if (state.generated.length >= state.autoGoal) {
+      clearInterval(state.auto);
+      state.auto = null;
+      $("autoBtn").textContent = "Auto-step";
+      return;
+    }
+    goToStep(3);
+    setTimeout(() => {
+      goToStep(4);
+      setTimeout(() => {
+        goToStep(5);
+        setTimeout(() => {
+          pickSample();
+        }, speed / 3);
+      }, speed / 3);
+    }, speed / 3);
+  };
+
+  state.auto = setInterval(runPass, speed + 100);
+  runPass();
+}
+
+/* ── Init ────────────────────────────────────────────────────────────────── */
+function init() {
+  $("resetBtn").onclick = () => {
+    if (state.auto) toggleAuto();
+    state.generated = [];
+    state.baseTokens = [];
+    state.tokenized = false;
+    state.lastPicked = null;
+    state.loopCount = 0;
+    state.dials = { object: .55, action: .35, place: .30, logic: .28, tone: .45 };
+    state.temp = 0.8;
+    state.topk = 5;
+    goToStep(1);
+  };
+  $("autoBtn").onclick = toggleAuto;
+  goToStep(1);
+}
+
+init();
+</script>
+</body>
+</html>

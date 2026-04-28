@@ -5,6 +5,25 @@ This is a creative log, not a version changelog.
 
 ---
 
+## 2026-04-28
+
+### Transformer Slice v2
+A ground-up rebuild of the decoder toy as a sequential, step-locked experience.
+Each of the 6 real LLM stages (Tokenize, Embed, Attend, Mix, Score, Sample) is
+a focussed card that fills the centre column; only the active card is visible.
+The neural-net chain strip across the top has six named nodes with colour-coded
+glows; individual slider and dial interactions pulse the exact connecting line.
+Step 2 shows positional-encoding deltas alongside embedding feature bars.
+Step 3 uses Q·K framing: sliders are labelled "relevance to current query" and
+move the attention heatmap on token chips live. Step 4 labels the FFN as
+associative memory and explains residual connections inline. Step 6 shows a live
+distribution bar chart that reshapes in real time as temperature and top-k change.
+The sidebar shows reversed chat bubbles: the AI's partial sentence on the left
+and the human's accumulating response tokens on the right, making the role
+reversal explicit.
+
+---
+
 ## 2026-04-27
 
 ### Transformer Slice
