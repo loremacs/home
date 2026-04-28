@@ -254,6 +254,13 @@
   }
   .tok.current { color: #06131a; background: var(--cyan); border-color: var(--cyan); font-weight: 800; }
   .tok small { color: inherit; opacity: 0.75; margin-left: 4px; }
+  .tok .attn-chip {
+    display: inline-block;
+    margin-left: 5px;
+    color: var(--amber);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
 
   .chunk {
     margin: 10px 0;
@@ -429,7 +436,8 @@
     border-radius: inherit;
     background: linear-gradient(90deg, var(--amber), var(--rose));
   }
-  .prob { text-align: right; color: var(--amber); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .prob { text-align: right; color: var(--amber); font-variant-numeric: tabular-nums; font-size: 12px; line-height: 1.1; }
+  .prob small { color: var(--muted); font-size: 10px; }
 
   .controls {
     display: grid;
@@ -877,17 +885,31 @@ function contextVector() {
     const vec = tokenVector(tok);
     FEATURES.forEach((_, j) => ctx[j] += vec[j] * (attn[i] || 0));
   });
-  return ctx.map((v, i) => clamp(v * .72 + state.dials[FEATURES[i]] * .45, 0, 1.35));
+  return ctx.map((v, i) => clamp(v * .65 + state.dials[FEATURES[i]] * .75, 0, 1.4));
+}
+
+function vectorDot(a, b) {
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
 }
 
 function candidateScores() {
+  const toks = allTokens();
+  const attn = normalizedAttention();
   const ctx = contextVector();
-  const used = new Set(allTokens().slice(-4));
+  const used = new Set(toks.slice(-4));
   return VOCAB.map((cand, idx) => {
-    const dot = cand.vec.reduce((sum, v, i) => sum + v * ctx[i], 0);
+    const contextFit = vectorDot(cand.vec, ctx);
+    const tokenChainFit = toks.reduce((sum, tok, i) => {
+      const tokenMatch = vectorDot(cand.vec, tokenVector(tok));
+      return sum + tokenMatch * (attn[i] || 0);
+    }, 0);
+    const dialBias = cand.vec.reduce((sum, v, i) => {
+      const dial = state.dials[FEATURES[i]];
+      return sum + v * ((dial - 0.5) * 2.4);
+    }, 0);
     const repeatPenalty = used.has(cand.token) ? -.65 : 0;
-    const rhythm = ((idx + state.step) % 5 === 0) ? .18 : 0;
-    return { ...cand, score: dot + repeatPenalty + rhythm };
+    const rhythm = ((idx + state.step) % 5 === 0) ? .05 : 0;
+    return { ...cand, score: contextFit * .35 + tokenChainFit * 1.55 + dialBias + repeatPenalty + rhythm };
   }).sort((a, b) => b.score - a.score);
 }
 
@@ -938,11 +960,15 @@ function renderLoopStrip() {
     ? `${STAGES[state.phase][0]} active, ${state.generated.length} sampled`
     : `pass ${state.step}: ${STAGES[state.phase][0]} active, ${state.generated.length} sampled token${state.generated.length === 1 ? "" : "s"}`;
 
-  const tokens = allTokens().slice(-4);
+  const all = allTokens();
+  const attn = normalizedAttention();
+  const start = Math.max(0, all.length - 4);
+  const tokens = all.slice(start);
   const inputs = (tokens.length ? tokens : ["prompt"]).map((t, i, arr) => ({
     x: 80,
     y: 18 + i * (42 / Math.max(1, arr.length - 1 || 1)),
-    label: t
+    label: t,
+    attn: tokens.length ? (attn[start + i] || 0) : 1
   }));
   const hiddenA = ["context", "grammar", "order", "attention"].map((label, i) => ({ x: 315, y: 12 + i * 16, label }));
   const hiddenB = ["features", "pattern", "activation", "residual"].map((label, i) => ({ x: 545, y: 12 + i * 16, label }));
@@ -951,14 +977,14 @@ function renderLoopStrip() {
   const layerForPhase = [0, 0, 1, 2, 3, 3][state.phase] || 0;
   const clsFor = layer => layer === layerForPhase ? "active" : (layer < layerForPhase ? "done" : "");
   const lines = [];
-  for (const a of inputs) for (const b of hiddenA) lines.push([a, b, layerForPhase >= 1 && b.y === hiddenA[1].y]);
-  for (const a of hiddenA) for (const b of hiddenB) lines.push([a, b, layerForPhase >= 2 && a.y === hiddenA[1].y && b.y === hiddenB[2].y]);
-  for (const a of hiddenB) for (const b of outs) lines.push([a, b, layerForPhase >= 3 && a.y === hiddenB[2].y && b.y === outs[0]?.y]);
+  for (const a of inputs) for (const b of hiddenA) lines.push([a, b, Math.max(0.08, a.attn || 0), layerForPhase >= 1 && (a.attn || 0) > 0.18]);
+  for (const a of hiddenA) for (const b of hiddenB) lines.push([a, b, layerForPhase >= 2 ? 0.55 : 0.14, layerForPhase >= 2 && b.y === hiddenB[2].y]);
+  for (const a of hiddenB) for (const b of outs) lines.push([a, b, Math.max(0.08, b.prob || 0), layerForPhase >= 3 && b.prob === outs[0]?.prob]);
 
   const circles = (nodes, type, layer) => nodes.map(n => `
     <g>
-      <circle class="net-node ${type} ${clsFor(layer)}" cx="${n.x}" cy="${n.y}" r="8"/>
-      <text class="net-small" x="${n.x + 13}" y="${n.y + 3}">${esc(String(n.label).slice(0, 12))}${n.prob != null ? ` ${Math.round(n.prob * 100)}%` : ""}</text>
+      <circle class="net-node ${type} ${clsFor(layer)}" cx="${n.x}" cy="${n.y}" r="${(7 + (n.attn ?? n.prob ?? 0.22) * 8).toFixed(1)}" opacity="${(0.35 + (n.attn ?? n.prob ?? 0.35) * 0.65).toFixed(2)}"/>
+      <text class="net-small" x="${n.x + 16}" y="${n.y + 3}">${esc(String(n.label).slice(0, 12))}${n.prob != null ? ` ${Math.round(n.prob * 100)}%` : n.attn != null ? ` ${Math.round(n.attn * 100)}%` : ""}</text>
     </g>
   `).join("");
 
@@ -968,7 +994,7 @@ function renderLoopStrip() {
     <text class="net-label" x="505" y="9">activation / mixer</text>
     <text class="net-label" x="770" y="9">output logits</text>
     <rect class="activation-window" x="500" y="5" width="100" height="66" rx="12"/>
-    ${lines.map(([a, b, hot]) => `<line class="net-line ${hot ? "hot" : ""}" x1="${a.x + 8}" y1="${a.y}" x2="${b.x - 8}" y2="${b.y}"/>`).join("")}
+    ${lines.map(([a, b, strength, hot]) => `<line class="net-line ${hot ? "hot" : ""}" x1="${a.x + 8}" y1="${a.y}" x2="${b.x - 8}" y2="${b.y}" opacity="${(0.14 + strength * 0.86).toFixed(2)}" stroke-width="${(0.8 + strength * 4).toFixed(2)}"/>`).join("")}
     ${circles(inputs, "input", 0)}
     ${circles(hiddenA, "hidden", 1)}
     ${circles(hiddenB, "hidden", 2)}
@@ -980,8 +1006,11 @@ function renderLoopStrip() {
 
 function renderTokens() {
   const toks = allTokens();
+  const attn = normalizedAttention();
   $("tokens").innerHTML = toks.map((t, i) => `
-    <span class="tok ${i === toks.length - 1 ? "current" : ""}">${esc(t)}<small>${i}</small></span>
+    <span class="tok ${i === toks.length - 1 ? "current" : ""}" style="border-color:rgba(255,209,102,${0.18 + (attn[i] || 0) * 0.82});background:linear-gradient(90deg, rgba(255,209,102,${0.08 + (attn[i] || 0) * 0.24}), rgba(102,217,255,0.06));">
+      ${esc(t)}<small>${i}</small><span class="attn-chip">${Math.round((attn[i] || 0) * 100)}%</span>
+    </span>
   `).join("");
   $("timeline").innerHTML = state.generated.length
     ? state.generated.map((t, i) => `<span class="tok">${esc(t)}<small>${i + 1}</small></span>`).join("")
@@ -1049,7 +1078,7 @@ function renderLogits() {
     <button class="candidate" data-pick="${esc(p.token)}">
       <b>${esc(p.token)}</b>
       <span class="prob-track"><span class="prob-fill" style="display:block;width:${Math.max(2, Math.round(p.prob * 100))}%"></span></span>
-      <span class="prob">${Math.round(p.prob * 100)}%</span>
+      <span class="prob">${Math.round(p.prob * 100)}%<br><small>${p.score.toFixed(2)}</small></span>
     </button>
   `).join("");
   document.querySelectorAll("[data-pick]").forEach(btn => {
@@ -1061,6 +1090,16 @@ function renderExplain() {
   const toks = allTokens();
   const last = toks[toks.length - 1] || "(nothing)";
   const top = probabilities()[0];
+  const attn = normalizedAttention();
+  const attended = allTokens()
+    .map((t, i) => ({ t, v: attn[i] || 0 }))
+    .sort((a, b) => b.v - a.v)[0];
+  const drivers = FEATURES
+    .map(f => ({ f, v: state.dials[f] }))
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 2)
+    .map(d => `${d.f} ${d.v.toFixed(2)}`)
+    .join(", ");
   $("askTitle").textContent = "AI asks the human decoder:";
   $("askText").textContent = `The current last token is "${last}". Set attention, feature boosts, temperature, and top-k so the next-token distribution feels plausible.`;
   $("explain").textContent = `Current slice: ${STAGES[state.phase][0]}. Top candidate is "${top.token}" at ${Math.round(top.prob * 100)} percent, but sampling may still choose another token.`;
@@ -1068,6 +1107,8 @@ function renderExplain() {
     `Input tokens: ${state.baseTokens.length}`,
     `Generated tokens: ${state.generated.length}`,
     `Last sampled: ${state.lastPicked || "none"}`,
+    `Strongest attended token: ${attended ? `${attended.t} ${Math.round(attended.v * 100)}%` : "none"}`,
+    `Strongest dial influence: ${drivers}`,
     `Visible layers: one attention head, one mixer, one logit board`,
     `Not shown: billions of parameters, many layers, tokenizer details, training`
   ].map(t => `<p>${esc(t)}</p>`).join("");

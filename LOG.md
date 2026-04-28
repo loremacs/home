@@ -30,6 +30,18 @@ nodes, hidden nodes, an activation/mixer window, output candidates, and
 highlighted flow lines. Fixed auto-step so each click runs a fresh batch
 from the current response length instead of stopping immediately once an
 older generated-token cap had already been reached.
+Retuned the logit scoring so feature sliders have a visible effect on
+the candidate rankings: dials now add stronger positive/negative bias
+instead of only a small positive boost, and the trace calls out the
+strongest current dial influences.
+Retuned attention again so token-chain sliders directly score candidates
+against the weighted source tokens, making a lowered token influence fall
+out of the ranking and allowing the next strongest token path to replace
+it.
+Made the interaction feedback fully dynamic: token chips now show
+attention heat and percentages, neural-loop input nodes and flow lines
+scale with attention, output nodes scale with probability, and logit rows
+show raw score movement alongside probability.
 
 ---
 
