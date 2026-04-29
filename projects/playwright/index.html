@@ -1052,7 +1052,7 @@ $("reloadBtn").addEventListener("click", () => { if (state.currentUrl) navigate(
 $("backBtn").addEventListener("click", () => {
   try { iframe.contentWindow.history.back(); } catch { history.back(); }
 });
-$("openNew").addEventListener("click", () => { if (state.currentUrl) window.open(fullUrl(), "_blank"); });
+$("openNew").addEventListener("click", () => { if (state.currentUrl) window.open(fullUrl(), "_blank", "noopener"); });
 $("presetSelect").addEventListener("change", (e) => {
   if (e.target.value) navigate(e.target.value);
   e.target.selectedIndex = 0;

@@ -562,6 +562,7 @@ function esc(s) {
   return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 }
 function stripHtml(s) { const d = document.createElement("div"); d.innerHTML = s || ""; return (d.textContent || "").trim(); }
+function hasCoords(e) { return Number.isFinite(e?.lat) && Number.isFinite(e?.lng); }
 
 async function fetchJSON(url) {
   const r = await fetch(url, { mode:"cors" });
@@ -979,6 +980,7 @@ function renderMapLayers() {
   for (const evt of state.events) {
     if (!state.layers.has(evt.layer)) continue;
     if (evt.layer === "weather") continue;
+    if (!hasCoords(evt)) continue;
     if (evt.ts < cutoff && !ALWAYS.has(evt.layer)) continue;
     if (state.layerGroups[evt.layer]) markerFor(evt).addTo(state.layerGroups[evt.layer]);
   }
@@ -1026,6 +1028,7 @@ function renderGlobePoints() {
   for (const evt of state.events) {
     if (!state.layers.has(evt.layer)) continue;
     if (evt.layer === "weather") continue;
+    if (!hasCoords(evt)) continue;
     if (evt.ts < cutoff && !ALWAYS.has(evt.layer)) continue;
     const layer = LAYERS.find(l => l.id === evt.layer);
     pts.push({ lat: evt.lat, lng: evt.lng, color: layer?.color || "#fff", title: evt.title, url: evt.url });
@@ -1169,6 +1172,7 @@ function renderEvents() {
   const bounds = state.map && state.focusRegion !== "global" ? state.map.getBounds().pad(0.15) : null;
   const items = state.events.filter(e => {
     if (!state.layers.has(e.layer)) return false;
+    if (!hasCoords(e)) return false;
     if (e.ts < cutoff && !ALWAYS.has(e.layer)) return false;
     if (bounds && e.lat != null && !bounds.contains([e.lat, e.lng])) return false;
     return true;
