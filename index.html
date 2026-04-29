@@ -380,6 +380,7 @@ const CATALOG = [
   { id: "logic-lab",   title: "Logic Lab",  desc: "Gate puzzle game. Wire IC chips to satisfy truth tables.", href: PROJECTS_BASE + "logic-lab/", prompts: 1, jist: "Browser-based logic gate puzzle game: drag-and-drop IC components onto a PCB grid, draw wires, and satisfy truth table test cases to advance through 10 levels." },
   { id: "transformer-slice", title: "Transformer Slice", desc: "Play the decoder: tune attention, logits, and sampling.", href: PROJECTS_BASE + "transformer-slice/", prompts: 9, jist: "Build a visual toy where the human acts as a tiny LLM decoder and turns simplified model dials to generate next tokens." },
   { id: "transformer-slice-v2", title: "Transformer Slice v2", desc: "Step-locked decoder: one LLM stage at a time, reversed AI/human roles.", href: PROJECTS_BASE + "transformer-slice-v2/", prompts: 2, jist: "Sequential 6-step decoder toy: each LLM stage is a focussed card with Q·K attention, positional encoding, residual notes, and a live sampling distribution. AI partial sentence on the left; human-generated tokens on the right." },
+  { id: "ghostline", title: "Ghostline Ops", desc: "Fake hacker desk: terminal, scans, traces, ping map, monitors.", href: PROJECTS_BASE + "ghostline/", prompts: 2, jist: "Create a playful simulated hacker interface where visitors execute fake commands, run decoy scans, trace fictional users, watch a global ping map react, and drive a busy code-runner panel." },
   { id: "glyph",        title: "Glyph Forge",           desc: "Symbols want to mean." },
   { id: "palimpsest",   title: "Palimpsest",            desc: "The page remembers." },
   { id: "drift",        title: "Drift",                 desc: "Entropy as compass." },
@@ -791,6 +792,33 @@ function makeThumb(n) {
       <text x="40" y="31" text-anchor="middle" font-size="7" fill="#8090a8" font-family="system-ui,sans-serif">AI: "The dragon…"</text>
       <rect x="88" y="20" width="64" height="16" rx="5" fill="rgba(255,209,102,.07)" stroke="rgba(255,209,102,.25)" stroke-width=".8"/>
       <text x="120" y="31" text-anchor="middle" font-size="7" fill="#ffd166" font-family="system-ui,sans-serif">You: "opened"</text>
+    </svg>`;
+  }
+
+  if (n.id === "ghostline") {
+    return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+      <rect width="160" height="90" fill="#020604"/>
+      <g stroke="rgba(55,255,158,.16)" stroke-width=".7">
+        <path d="M0 18H160M0 36H160M0 54H160M0 72H160M24 0V90M48 0V90M72 0V90M96 0V90M120 0V90M144 0V90"/>
+      </g>
+      <rect x="8" y="10" width="54" height="56" rx="4" fill="#06110d" stroke="#37ff9e"/>
+      <rect x="68" y="10" width="84" height="56" rx="4" fill="#06110d" stroke="#50beff"/>
+      <rect x="8" y="70" width="144" height="10" rx="3" fill="#07140f" stroke="rgba(55,255,158,.35)"/>
+      <text x="14" y="22" font-family="Consolas,monospace" font-size="6" fill="#37ff9e">&gt; scan</text>
+      <text x="14" y="34" font-family="Consolas,monospace" font-size="6" fill="#57856f">relay: ok</text>
+      <text x="14" y="46" font-family="Consolas,monospace" font-size="6" fill="#50beff">trace: 7 hops</text>
+      <text x="14" y="58" font-family="Consolas,monospace" font-size="6" fill="#ffd166">user: ghost</text>
+      <circle cx="110" cy="38" r="22" fill="none" stroke="#50beff" stroke-width="1" opacity=".7"/>
+      <ellipse cx="110" cy="38" rx="22" ry="7" fill="none" stroke="#37ff9e" stroke-width=".7" opacity=".55"/>
+      <ellipse cx="110" cy="38" rx="7" ry="22" fill="none" stroke="#37ff9e" stroke-width=".7" opacity=".55"/>
+      <circle cx="94" cy="31" r="2" fill="#37ff9e"/>
+      <circle cx="121" cy="47" r="2" fill="#ffd166"/>
+      <circle cx="113" cy="22" r="1.8" fill="#ff4d7d"/>
+      <path d="M94 31Q106 14 121 47" fill="none" stroke="#37ff9e" stroke-width="1.1"/>
+      <path d="M113 22Q132 32 121 47" fill="none" stroke="#50beff" stroke-width="1"/>
+      <rect x="15" y="73" width="38" height="3" rx="1.5" fill="#37ff9e"/>
+      <rect x="61" y="73" width="26" height="3" rx="1.5" fill="#50beff"/>
+      <rect x="95" y="73" width="48" height="3" rx="1.5" fill="#ffd166"/>
     </svg>`;
   }
 

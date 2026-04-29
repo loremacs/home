@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghostline Ops - Simulated Hacker Interface</title>
+<style>
+:root {
+  --bg:#020604;
+  --panel:#06110d;
+  --panel2:#091813;
+  --line:rgba(55,255,158,.18);
+  --line2:rgba(80,190,255,.18);
+  --txt:#b9ffda;
+  --mut:#57856f;
+  --green:#37ff9e;
+  --blue:#50beff;
+  --amber:#ffd166;
+  --red:#ff4d7d;
+  --violet:#b38cff;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { height:100%; }
+body {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(55,255,158,.12), transparent 28%),
+    radial-gradient(circle at 82% 20%, rgba(80,190,255,.10), transparent 26%),
+    linear-gradient(180deg, #010302, var(--bg));
+  color:var(--txt);
+  font:12px/1.45 "Cascadia Mono", Consolas, "Courier New", monospace;
+  overflow:hidden;
+}
+button, input {
+  font:inherit;
+  color:inherit;
+  background:#07140f;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+button { cursor:pointer; padding:7px 10px; text-transform:uppercase; letter-spacing:.08em; }
+button:hover { border-color:var(--green); box-shadow:0 0 16px rgba(55,255,158,.16); }
+button.hot { background:rgba(55,255,158,.12); border-color:rgba(55,255,158,.55); color:var(--green); }
+button.warn { border-color:rgba(255,209,102,.45); color:var(--amber); }
+a { color:var(--blue); text-decoration:none; }
+a:hover { color:var(--green); }
+.app { height:100vh; display:grid; grid-template-rows:46px 1fr 28px; overflow:hidden; }
+.top {
+  display:flex; align-items:center; gap:12px; padding:0 14px;
+  border-bottom:1px solid var(--line); background:rgba(3,10,7,.92);
+}
+.back { font-size:18px; color:var(--mut); padding:2px 6px; border-radius:5px; }
+.brand { flex:1; }
+.brand b { color:var(--green); letter-spacing:.18em; font-size:14px; }
+.brand span { color:var(--mut); margin-left:10px; font-size:10px; }
+.clock, .risk {
+  border:1px solid var(--line); border-radius:999px; padding:4px 9px;
+  color:var(--mut); background:rgba(6,17,13,.75);
+}
+.risk b { color:var(--amber); }
+.grid {
+  min-height:0;
+  display:grid;
+  grid-template-columns:310px 1fr 340px;
+  gap:10px;
+  padding:10px;
+}
+.panel {
+  min-height:0;
+  background:linear-gradient(180deg, rgba(9,24,19,.94), rgba(4,11,8,.96));
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 18px 60px rgba(0,0,0,.45);
+}
+.panel h2 {
+  height:34px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 12px; background:rgba(2,8,5,.72); border-bottom:1px solid var(--line);
+  color:var(--green); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+}
+.panel h2 small { color:var(--mut); font-weight:400; letter-spacing:.08em; }
+.stack { display:grid; grid-template-rows:220px 1fr; gap:10px; min-height:0; }
+.programs { padding:10px; display:grid; gap:8px; overflow:auto; }
+.program {
+  border:1px solid var(--line); border-radius:10px; padding:10px;
+  background:rgba(55,255,158,.04); cursor:pointer; transition:.15s;
+}
+.program:hover, .program.active { border-color:var(--green); background:rgba(55,255,158,.10); transform:translateY(-1px); }
+.program b { color:var(--txt); font-size:12px; }
+.program p { color:var(--mut); margin-top:4px; font-size:10px; }
+.program .tag { display:inline-block; margin-top:7px; color:var(--blue); font-size:9px; letter-spacing:.1em; }
+.meters { padding:10px; display:grid; gap:10px; overflow:auto; }
+.meter label { display:flex; justify-content:space-between; color:var(--mut); margin-bottom:4px; font-size:10px; text-transform:uppercase; }
+.bar { height:8px; background:#03100b; border:1px solid rgba(55,255,158,.14); border-radius:999px; overflow:hidden; }
+.bar i { display:block; height:100%; width:30%; background:linear-gradient(90deg, var(--green), var(--blue)); box-shadow:0 0 12px var(--green); }
+.center { display:grid; grid-template-rows:minmax(260px, 1fr) 230px; gap:10px; min-height:0; }
+.map-wrap { position:relative; min-height:0; }
+#map { width:100%; height:100%; display:block; background:#020604; }
+.map-label {
+  position:absolute; left:14px; top:46px; color:var(--mut); font-size:10px;
+  background:rgba(2,8,5,.75); border:1px solid var(--line); padding:6px 8px; border-radius:8px;
+}
+.trace-card {
+  position:absolute; right:14px; bottom:14px; width:min(330px, calc(100% - 28px));
+  background:rgba(2,8,5,.88); border:1px solid var(--line2); border-radius:10px; padding:10px;
+}
+.trace-card b { color:var(--blue); }
+.trace-card p { color:var(--mut); margin-top:5px; }
+.terminal {
+  display:grid; grid-template-rows:1fr 38px; min-height:0;
+  background:linear-gradient(180deg, rgba(1,6,4,.98), rgba(4,13,9,.98));
+}
+#log { padding:12px; overflow:auto; white-space:pre-wrap; word-break:break-word; }
+.ln { display:block; color:var(--txt); }
+.ln.dim { color:var(--mut); }
+.ln.ok { color:var(--green); }
+.ln.blue { color:var(--blue); }
+.ln.warn { color:var(--amber); }
+.ln.red { color:var(--red); }
+.cmdline { display:flex; gap:8px; align-items:center; padding:8px 10px; border-top:1px solid var(--line); }
+.cmdline span { color:var(--green); }
+#cmd { flex:1; min-width:0; padding:7px 8px; outline:none; }
+.right { display:grid; grid-template-rows:330px 1fr 180px; gap:10px; min-height:0; }
+.runner { display:grid; grid-template-rows:auto 1fr 72px 58px; min-height:0; }
+.runner-actions {
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; padding:8px;
+  border-bottom:1px solid var(--line); background:rgba(1,6,4,.42);
+}
+.runner-actions button { padding:6px 4px; font-size:10px; }
+.code {
+  padding:10px 12px; overflow:auto; color:#8df7bf; background:rgba(1,6,4,.58);
+  counter-reset:line;
+}
+.code div::before {
+  counter-increment:line; content:counter(line, decimal-leading-zero) " ";
+  color:#23523b; margin-right:10px;
+}
+.code .hotline { color:var(--amber); text-shadow:0 0 10px rgba(255,209,102,.22); }
+.run-output {
+  overflow:auto; padding:8px 10px; color:var(--mut); border-top:1px solid var(--line);
+  background:rgba(2,8,5,.72); white-space:pre-wrap;
+}
+.run-output b { color:var(--green); font-weight:400; }
+.proc-grid {
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; padding:8px;
+  border-top:1px solid var(--line); background:rgba(55,255,158,.035);
+}
+.proc {
+  border:1px solid rgba(55,255,158,.18); border-radius:7px; padding:5px 6px;
+  color:var(--mut); min-width:0;
+}
+.proc b { display:block; color:var(--txt); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.proc i { display:block; height:3px; margin-top:5px; border-radius:3px; background:linear-gradient(90deg, var(--green), var(--blue)); }
+.map-actions {
+  position:absolute; left:14px; bottom:14px; display:flex; flex-wrap:wrap; gap:6px;
+  max-width:calc(100% - 380px);
+}
+.map-actions button {
+  padding:6px 8px; background:rgba(2,8,5,.82); backdrop-filter:blur(4px);
+  font-size:10px;
+}
+.targets { padding:10px; overflow:auto; display:grid; gap:8px; }
+.target {
+  border:1px solid rgba(80,190,255,.18); border-radius:9px; padding:9px;
+  display:grid; grid-template-columns:1fr auto; gap:3px 8px; background:rgba(80,190,255,.04);
+  cursor:pointer; transition:.15s;
+}
+.target:hover, .target.sel { border-color:var(--blue); background:rgba(80,190,255,.10); }
+.target b { color:var(--blue); }
+.target span { color:var(--mut); font-size:10px; }
+.target em { color:var(--amber); font-style:normal; }
+.objectives { padding:10px; display:grid; gap:8px; overflow:auto; }
+.obj { display:flex; gap:8px; align-items:flex-start; color:var(--mut); }
+.box { width:14px; height:14px; border:1px solid var(--line); border-radius:3px; flex:0 0 auto; margin-top:1px; }
+.obj.done { color:var(--txt); }
+.obj.done .box { background:var(--green); box-shadow:0 0 10px rgba(55,255,158,.5); }
+.foot {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:0 14px; color:var(--mut); border-top:1px solid var(--line); background:rgba(3,10,7,.92);
+}
+.scanlines::after {
+  content:""; pointer-events:none; position:fixed; inset:0;
+  background:linear-gradient(rgba(255,255,255,.025) 50%, rgba(0,0,0,.03) 50%);
+  background-size:100% 4px; mix-blend-mode:screen; opacity:.35;
+}
+@media (max-width:1050px) {
+  body { overflow:auto; }
+  .app { height:auto; min-height:100vh; overflow:visible; }
+  .grid { grid-template-columns:1fr; }
+  .center, .right, .stack { grid-template-rows:auto; }
+  .map-wrap { height:360px; }
+  .map-actions { position:static; padding:10px 14px; max-width:none; }
+  .panel { min-height:180px; }
+}
+</style>
+</head>
+<body class="scanlines">
+<div class="app">
+  <header class="top">
+    <a class="back" href="../../" title="Back to atlas">&larr;</a>
+    <div class="brand"><b>GHOSTLINE OPS</b><span>fictional command surface / no live network access</span></div>
+    <div class="risk">cover <b id="cover">84%</b></div>
+    <div class="clock" id="clock">00:00:00Z</div>
+  </header>
+
+  <main class="grid">
+    <section class="stack">
+      <div class="panel">
+        <h2>Programs <small>click to execute</small></h2>
+        <div class="programs" id="programs"></div>
+      </div>
+      <div class="panel">
+        <h2>Network Monitor <small id="monitorMode">idle</small></h2>
+        <div class="meters" id="meters"></div>
+      </div>
+    </section>
+
+    <section class="center">
+      <div class="panel map-wrap">
+        <h2>Global Ping Mapper <small id="mapStatus">listening</small></h2>
+        <canvas id="map"></canvas>
+        <div class="map-label">Simulated latency arcs, decoy relays, and trace blooms.</div>
+        <div class="trace-card">
+          <b id="traceTitle">No active trace</b>
+          <p id="traceText">Run pingmap, trace, or identify to light up the board.</p>
+        </div>
+        <div class="map-actions">
+          <button class="hot" data-action="burst">burst</button>
+          <button data-action="reroute">reroute</button>
+          <button data-action="spoof">spoof id</button>
+          <button class="warn" data-action="decrypt">decrypt</button>
+        </div>
+      </div>
+      <div class="panel terminal">
+        <div id="log"></div>
+        <form class="cmdline" id="cmdForm">
+          <span>ops@ghostline:~$</span>
+          <input id="cmd" autocomplete="off" spellcheck="false" value="help">
+          <button class="hot" type="submit">run</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="panel runner">
+        <h2>Code Runner <small id="scriptState">ready</small></h2>
+        <div class="runner-actions">
+          <button class="hot" data-code="run">run loop</button>
+          <button data-code="step">step line</button>
+          <button class="warn" data-code="mutate">mutate</button>
+        </div>
+        <div class="code" id="code"></div>
+        <div class="run-output" id="runOutput"><b>runner:</b> waiting for execution plan...</div>
+        <div class="proc-grid" id="procGrid"></div>
+      </div>
+      <div class="panel">
+        <h2>Trace Targets <small>fictional</small></h2>
+        <div class="targets" id="targets"></div>
+      </div>
+      <div class="panel">
+        <h2>Mission Board <small id="mission">0/5</small></h2>
+        <div class="objectives" id="objectives"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Tip: try <b>scan</b>, <b>pingmap</b>, <b>trace</b>, <b>compile</b>, <b>identify</b>, or <b>clear</b>.</span>
+    <span id="ticker">packet stream nominal</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+const programs = [
+  { id:"scan", name:"Port Sweep", tag:"scanner", desc:"Inventory a decoy subnet and flag noisy doors." },
+  { id:"pingmap", name:"Global Ping", tag:"mapper", desc:"Draw latency arcs through rotating relay cities." },
+  { id:"trace", name:"Trace Route", tag:"tracker", desc:"Walk a signal through seven fake hops." },
+  { id:"compile", name:"Code Runner", tag:"executor", desc:"Compile a pretend exploit-shaped theater script." },
+  { id:"monitor", name:"Packet Monitor", tag:"watcher", desc:"Spike bandwidth, entropy, and firewall chatter." },
+  { id:"identify", name:"User Identify", tag:"profile", desc:"Assemble a fictional operator dossier from decoys." }
+];
+const meters = [
+  ["bandwidth", 34], ["entropy", 52], ["relay jitter", 21],
+  ["firewall heat", 18], ["signal lock", 8], ["decoy spread", 70]
+];
+const objectives = [
+  ["scan", "Map the decoy subnet"],
+  ["pingmap", "Light up three continents"],
+  ["trace", "Resolve a relay chain"],
+  ["compile", "Execute the pretend payload"],
+  ["identify", "Build a fictional user card"]
+];
+const targets = [
+  { handle:"NULL_RAVEN", loc:"Reykjavik relay", risk:"low", note:"typing from a weather station that does not exist" },
+  { handle:"C0BALT_MOTH", loc:"Singapore mirror", risk:"medium", note:"latency signature loops every 13 seconds" },
+  { handle:"SABLE_LOOP", loc:"Sao Paulo node", risk:"low", note:"leaves perfect decoy breadcrumbs" },
+  { handle:"GLASS_WOLF", loc:"Toronto exchange", risk:"high", note:"too many clean hops, probably theater" }
+];
+const codeLines = [
+  "const relay = mesh.pick('lowest_jitter');",
+  "const packet = forge.decoy({ ttl: 7, mask: 'lunar' });",
+  "await ghostline.handshake(relay, packet);",
+  "if (trace.confidence > 0.82) bloom(map, trace.path);",
+  "profile = identify.from(['latency', 'rhythm', 'coffee']);",
+  "terminal.print('ACCESS GRANTED, PROBABLY');"
+];
+const codeMutations = [
+  "mesh.rotate('north-arc', { decoys: 12 });",
+  "packet.paint({ color: 'ultraviolet', noise: 0.71 });",
+  "await monitor.sample('burst_window', 900);",
+  "trace.path.push(relay.nearest('moonlit-cache'));",
+  "profile.flags.add('fictional_operator');",
+  "terminal.sparkline(system.heat());"
+];
+const processes = [
+  { name:"relay-sync", value:38 },
+  { name:"map-bloom", value:64 },
+  { name:"trace-vm", value:22 },
+  { name:"spoof-id", value:77 },
+  { name:"packet-rain", value:48 },
+  { name:"coffee-ai", value:91 }
+];
+const cities = [
+  ["Seattle", .19, .31], ["Reykjavik", .46, .22], ["London", .50, .31],
+  ["Cairo", .55, .48], ["Singapore", .76, .60], ["Tokyo", .84, .42],
+  ["Sydney", .86, .78], ["Sao Paulo", .39, .72], ["Toronto", .28, .30],
+  ["Cape Town", .55, .78], ["Mumbai", .68, .55], ["Lima", .31, .66]
+];
+const logEl = document.getElementById("log");
+const map = document.getElementById("map");
+const ctx = map.getContext("2d");
+const done = new Set();
+let activeProgram = "";
+let pulses = [];
+let meterState = meters.map(m => ({ name:m[0], value:m[1] }));
+let selectedTarget = targets[0];
+let tick = 0;
+let codeCursor = 0;
+let runnerHot = -1;
+let processState = processes.map(p => ({ ...p }));
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+function line(text, cls = "") {
+  const span = document.createElement("span");
+  span.className = "ln " + cls;
+  span.textContent = text;
+  logEl.appendChild(span);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function stamp() {
+  return new Date().toISOString().slice(11, 19);
+}
+function rand(min, max) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+function mark(id) {
+  done.add(id);
+  renderObjectives();
+  document.getElementById("mission").textContent = done.size + "/" + objectives.length;
+}
+function renderPrograms() {
+  document.getElementById("programs").innerHTML = programs.map(p => `
+    <div class="program ${activeProgram === p.id ? "active" : ""}" data-run="${p.id}">
+      <b>${esc(p.name)}</b>
+      <p>${esc(p.desc)}</p>
+      <span class="tag">${esc(p.tag)}</span>
+    </div>`).join("");
+}
+function renderMeters() {
+  document.getElementById("meters").innerHTML = meterState.map(m => `
+    <div class="meter">
+      <label><span>${esc(m.name)}</span><span>${m.value}%</span></label>
+      <div class="bar"><i style="width:${m.value}%"></i></div>
+    </div>`).join("");
+}
+function renderCode(hot = -1) {
+  runnerHot = hot;
+  document.getElementById("code").innerHTML = codeLines.map((l, i) =>
+    `<div class="${i === hot ? "hotline" : ""}">${esc(l)}</div>`).join("");
+}
+function renderTargets() {
+  document.getElementById("targets").innerHTML = targets.map((t, i) => `
+    <div class="target ${t.handle === selectedTarget.handle ? "sel" : ""}" data-target="${i}">
+      <b>${esc(t.handle)}</b><em>${esc(t.risk)}</em>
+      <span>${esc(t.loc)}</span><span>${rand(18, 220)}ms</span>
+      <span style="grid-column:1/-1">${esc(t.note)}</span>
+    </div>`).join("");
+}
+function renderProcesses() {
+  document.getElementById("procGrid").innerHTML = processState.map(p => `
+    <div class="proc"><b>${esc(p.name)}</b><span>${p.value}%</span><i style="width:${p.value}%"></i></div>`).join("");
+}
+function runnerLine(text) {
+  const out = document.getElementById("runOutput");
+  out.innerHTML = "<b>runner:</b> " + esc(text);
+}
+function stepCode(reason = "step") {
+  codeCursor = (codeCursor + 1) % codeLines.length;
+  renderCode(codeCursor);
+  const lineText = codeLines[codeCursor].replace(/[();]/g, "");
+  runnerLine(reason + " -> line " + String(codeCursor + 1).padStart(2, "0") + " / " + lineText);
+  processState = processState.map(p => ({ ...p, value:Math.max(6, Math.min(99, p.value + rand(-16, 22))) }));
+  renderProcesses();
+}
+function mutateCode() {
+  const idx = rand(0, codeLines.length - 1);
+  const swap = codeMutations[rand(0, codeMutations.length - 1)];
+  codeLines[idx] = swap;
+  renderCode(idx);
+  runnerLine("mutated line " + String(idx + 1).padStart(2, "0") + " with harmless theater code");
+  line("  script mutation: " + swap, "warn");
+}
+function runCodeLoop() {
+  runnerLine("execution loop armed; stepping through fake async calls");
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => stepCode("auto"), i * 220);
+  }
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => addPulse(rand(0, cities.length - 1), rand(0, cities.length - 1), i % 2 ? "#ffd166" : "#37ff9e"), i * 120);
+  }
+}
+function renderObjectives() {
+  document.getElementById("objectives").innerHTML = objectives.map(([id, text]) => `
+    <div class="obj ${done.has(id) ? "done" : ""}">
+      <span class="box"></span><span>${esc(text)}</span>
+    </div>`).join("");
+}
+function resizeMap() {
+  const r = map.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  map.width = Math.max(1, Math.floor(r.width * dpr));
+  map.height = Math.max(1, Math.floor(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function cityPoint(city) {
+  const r = map.getBoundingClientRect();
+  return { x:city[1] * r.width, y:city[2] * r.height };
+}
+function addPulse(from, to, color = "#37ff9e") {
+  pulses.push({ from, to, color, age:0, life:90 + rand(0, 40) });
+}
+function drawMap() {
+  const r = map.getBoundingClientRect();
+  ctx.clearRect(0, 0, r.width, r.height);
+  ctx.fillStyle = "#020604";
+  ctx.fillRect(0, 0, r.width, r.height);
+  ctx.strokeStyle = "rgba(55,255,158,.08)";
+  ctx.lineWidth = 1;
+  for (let x = 20; x < r.width; x += 42) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, r.height); ctx.stroke(); }
+  for (let y = 20; y < r.height; y += 42) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(r.width, y); ctx.stroke(); }
+  ctx.strokeStyle = "rgba(80,190,255,.12)";
+  ctx.beginPath();
+  ctx.ellipse(r.width * .52, r.height * .5, r.width * .38, r.height * .30, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  for (const p of pulses) {
+    const a = cityPoint(cities[p.from]);
+    const b = cityPoint(cities[p.to]);
+    const t = p.age / p.life;
+    ctx.strokeStyle = p.color.replace(")", ",.45)").replace("rgb", "rgba");
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    const mx = (a.x + b.x) / 2;
+    const my = Math.min(a.y, b.y) - 50 - Math.sin(t * Math.PI) * 35;
+    ctx.moveTo(a.x, a.y);
+    ctx.quadraticCurveTo(mx, my, b.x, b.y);
+    ctx.stroke();
+    const x = a.x + (b.x - a.x) * t;
+    const y = a.y + (b.y - a.y) * t - Math.sin(t * Math.PI) * 55;
+    ctx.fillStyle = p.color;
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = p.color;
+    ctx.beginPath();
+    ctx.arc(x, y, 3 + Math.sin(t * Math.PI) * 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    p.age++;
+  }
+  pulses = pulses.filter(p => p.age < p.life);
+
+  cities.forEach((city, i) => {
+    const p = cityPoint(city);
+    ctx.fillStyle = i % 3 === 0 ? "#50beff" : "#37ff9e";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(185,255,218,.72)";
+    ctx.font = "10px Consolas, monospace";
+    ctx.fillText(city[0], p.x + 7, p.y - 7);
+  });
+}
+function animate() {
+  tick++;
+  if (tick % 42 === 0 && pulses.length < 9) addPulse(rand(0, cities.length - 1), rand(0, cities.length - 1), Math.random() > .5 ? "#37ff9e" : "#50beff");
+  if (tick % 90 === 0) stepCode("background");
+  drawMap();
+  requestAnimationFrame(animate);
+}
+function spikeMeters(mode) {
+  document.getElementById("monitorMode").textContent = mode;
+  meterState = meterState.map(m => ({ name:m.name, value:Math.max(4, Math.min(98, m.value + rand(-18, 26))) }));
+  renderMeters();
+  document.getElementById("cover").textContent = rand(61, 96) + "%";
+}
+function runProgram(id) {
+  activeProgram = id;
+  renderPrograms();
+  spikeMeters(id);
+  const start = rand(0, cities.length - 1);
+  for (let i = 0; i < 4; i++) addPulse((start + i) % cities.length, rand(0, cities.length - 1), i % 2 ? "#50beff" : "#37ff9e");
+  const t = targets[rand(0, targets.length - 1)];
+  selectedTarget = t;
+  document.getElementById("traceTitle").textContent = programs.find(p => p.id === id).name + " / " + t.handle;
+  document.getElementById("traceText").textContent = t.loc + ": " + t.note + ". Confidence " + rand(72, 98) + "%.";
+  document.getElementById("mapStatus").textContent = "burst " + rand(100, 999);
+  document.getElementById("scriptState").textContent = id;
+  renderCode(programs.findIndex(p => p.id === id) % codeLines.length);
+  stepCode(id);
+  renderTargets();
+  mark(id);
+
+  const rows = {
+    scan:["sweeping 10.44." + rand(10, 90) + ".0/24", "found 14 closed doors, 3 theatrical ports, 1 glowing toaster", "scan complete: subnet is harmless but dramatic"],
+    pingmap:["opening global ping mapper", "relay arc: Seattle -> Reykjavik -> Cairo -> Singapore", "latency bloom stabilized at " + rand(44, 188) + "ms"],
+    trace:["trace route armed for " + t.handle, "hop 03 returned a perfect alibi", "hop 07 resolved to " + t.loc],
+    compile:["compiling pretend payload", "lint warning: variable name too cool", "execution complete: lights blinked convincingly"],
+    monitor:["packet monitor sampling", "entropy spike detected in decoy lane", "firewall heat normalized after relay shuffle"],
+    identify:["assembling fictional profile for " + t.handle, "correlating keyboard rhythm with coffee temperature", "identity card generated: probably a person, possibly a raccoon"]
+  };
+  line("[" + stamp() + "] " + id + " launched", "blue");
+  rows[id].forEach((row, i) => setTimeout(() => line("  " + row, i === rows[id].length - 1 ? "ok" : "dim"), 260 + i * 360));
+}
+function handleCommand(raw) {
+  const cmd = raw.trim().toLowerCase();
+  if (!cmd) return;
+  line("ops@ghostline:~$ " + raw, "blue");
+  if (cmd === "help") {
+    line("commands: scan, pingmap, trace, compile, monitor, identify, run, mutate, burst, status, clear", "ok");
+  } else if (cmd === "status") {
+    line("cover " + document.getElementById("cover").textContent + " / mission " + done.size + "/" + objectives.length + " / target " + selectedTarget.handle, "ok");
+  } else if (cmd === "clear") {
+    logEl.innerHTML = "";
+    line("terminal cleared", "dim");
+  } else {
+    if (cmd === "run") runCodeLoop();
+    if (cmd === "mutate") mutateCode();
+    if (cmd === "burst") performAction("burst");
+    const id = programs.some(p => p.id === cmd) ? cmd : "";
+    if (id) runProgram(id);
+    else if (!["run", "mutate", "burst"].includes(cmd)) line("unknown command: " + raw + " / try help", "red");
+  }
+}
+function performAction(action) {
+  const labels = {
+    burst:"packet burst sprayed across relay mesh",
+    reroute:"route table shuffled through cold mirrors",
+    spoof:"operator id rotated to " + targets[rand(0, targets.length - 1)].handle,
+    decrypt:"decryptor found a note that says 'nice try'"
+  };
+  for (let i = 0; i < 8; i++) addPulse(rand(0, cities.length - 1), rand(0, cities.length - 1), action === "decrypt" ? "#ffd166" : action === "spoof" ? "#b38cff" : "#37ff9e");
+  spikeMeters(action);
+  stepCode(action);
+  runnerLine(labels[action]);
+  line("[" + stamp() + "] action deck: " + labels[action], action === "decrypt" ? "warn" : "ok");
+}
+
+document.getElementById("programs").addEventListener("click", e => {
+  const card = e.target.closest("[data-run]");
+  if (card) runProgram(card.dataset.run);
+});
+document.querySelector(".map-actions").addEventListener("click", e => {
+  const btn = e.target.closest("[data-action]");
+  if (btn) performAction(btn.dataset.action);
+});
+document.querySelector(".runner-actions").addEventListener("click", e => {
+  const btn = e.target.closest("[data-code]");
+  if (!btn) return;
+  if (btn.dataset.code === "run") runCodeLoop();
+  if (btn.dataset.code === "step") stepCode("manual");
+  if (btn.dataset.code === "mutate") mutateCode();
+});
+document.getElementById("targets").addEventListener("click", e => {
+  const card = e.target.closest("[data-target]");
+  if (!card) return;
+  selectedTarget = targets[Number(card.dataset.target)];
+  renderTargets();
+  document.getElementById("traceTitle").textContent = "Manual lock / " + selectedTarget.handle;
+  document.getElementById("traceText").textContent = selectedTarget.loc + ": " + selectedTarget.note + ". Click trace or identify to dramatize it.";
+  line("target selected: " + selectedTarget.handle + " at " + selectedTarget.loc, "blue");
+});
+document.getElementById("cmdForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const input = document.getElementById("cmd");
+  handleCommand(input.value);
+  input.value = "";
+});
+window.addEventListener("resize", resizeMap);
+setInterval(() => {
+  document.getElementById("clock").textContent = new Date().toISOString().slice(11, 19) + "Z";
+  document.getElementById("ticker").textContent = ["relay quiet", "packet stream nominal", "decoys humming", "map bloom cooling"][rand(0, 3)];
+}, 1000);
+setInterval(() => {
+  meterState = meterState.map(m => ({ name:m.name, value:Math.max(4, Math.min(98, m.value + rand(-7, 7))) }));
+  processState = processState.map(p => ({ ...p, value:Math.max(5, Math.min(99, p.value + rand(-10, 10))) }));
+  renderMeters();
+  renderProcesses();
+}, 2200);
+setInterval(() => {
+  const chatter = ["relay heartbeat accepted", "decoy tunnel refreshed", "synthetic packet rain rising", "watchdog blinked twice", "operator shadow moved"];
+  line("  " + chatter[rand(0, chatter.length - 1)], "dim");
+  if (logEl.children.length > 80) logEl.removeChild(logEl.firstChild);
+}, 3600);
+
+renderPrograms();
+renderMeters();
+renderCode();
+renderTargets();
+renderProcesses();
+renderObjectives();
+resizeMap();
+line("GHOSTLINE OPS booted. Simulation only. No live network access.", "ok");
+line("Type help or click a program card to perform convincing nonsense.", "dim");
+animate();
+</script>
+</body>
+</html>

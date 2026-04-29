@@ -46,8 +46,10 @@ SSH note: the SSH key on this machine is registered to `jasolvren`, not
     │   └── index.html           gate-puzzle game: wire IC chips, satisfy truth tables
     ├── transformer-slice/
     │   └── index.html           human-in-the-loop toy transformer decoder
-    └── transformer-slice-v2/
-        └── index.html           step-locked sequential decoder with Q·K attention and reversed chat frame
+    ├── transformer-slice-v2/
+    │   └── index.html           step-locked sequential decoder with Q·K attention and reversed chat frame
+    └── ghostline/
+        └── index.html           simulated hacker interface with terminal, scans, traces, and ping map
 ```
 
 ---
@@ -55,7 +57,7 @@ SSH note: the SSH key on this machine is registered to `jasolvren`, not
 ## 3. How to add a new card
 
 The catalog is a JS array in `index.html` around line 373 (search
-`const CATALOG`). **9 entries are live**, 22 are named placeholders.
+`const CATALOG`). **10 entries are live**, 24 are named placeholders.
 
 **Checklist — do all five steps:**
 
@@ -81,9 +83,9 @@ The catalog is a JS array in `index.html` around line 373 (search
    - Dark background thematically matched to the app's own colour palette.
    - Show recognisable elements: dominant colours, key UI shapes, data patterns.
    - Max ~50 SVG elements. No `<image>` tags or external refs.
-- Reference the existing 8 thumbnails for style guidance (`playwright`,
+- Reference the existing 10 thumbnails for style guidance (`playwright`,
      `emergent`, `curtain-lens`, `newsmap`, `prism-break`, `this-is-fine`,
-  `logic-lab`, `transformer-slice`, `transformer-slice-v2`).
+  `logic-lab`, `transformer-slice`, `transformer-slice-v2`, `ghostline`).
 
 4. **Update the file tree** in §2 of this file and the live-card count
    in §3 above.

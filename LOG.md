@@ -7,6 +7,20 @@ This is a creative log, not a version changelog.
 
 ## 2026-04-28
 
+### Ghostline Ops
+A simulated hacker desk for playful command-surface theater. The page is fully
+self-contained and does not touch live networks: program cards and typed commands
+run fake scans, global ping arcs, route traces, packet-monitor spikes, pretend
+code execution, and fictional user identification. The center canvas renders a
+reactive ping map while the side panels show monitor meters, trace targets,
+highlighted script lines, and mission objectives that complete as visitors use
+the tools.
+Expanded the right-side code area into an active Code Runner with run, step,
+and mutate controls, an execution output strip, and live process bars. Added map
+action buttons, clickable trace targets, automatic background script stepping,
+ambient terminal chatter, and more frequent process/meter movement so the page
+feels busy even before the visitor starts typing commands.
+
 ### Transformer Slice v2
 A ground-up rebuild of the decoder toy as a sequential, step-locked experience.
 Each of the 6 real LLM stages (Tokenize, Embed, Attend, Mix, Score, Sample) is

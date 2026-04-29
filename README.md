@@ -25,7 +25,9 @@ the field. Cards you visit drift toward the front over time.
 | [ThisIsFine](projects/this-is-fine/) | Real-time layoffs news and tech job tracker with a 5-minute polling timer and custom fire-themed UI. |
 | [Logic Lab](projects/logic-lab/) | Gate-puzzle game: drag IC components onto a PCB grid, wire them up, and satisfy truth table test cases to advance through 10 levels. |
 | [Transformer Slice](projects/transformer-slice/) | A visual toy decoder where the human turns attention, feature, logit, and sampling dials to generate next tokens. |
-| *(+23 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
+| [Transformer Slice v2](projects/transformer-slice-v2/) | Step-locked decoder toy with Q.K attention, positional encoding, residual notes, and reversed AI/human chat roles. |
+| [Ghostline Ops](projects/ghostline/) | Simulated hacker desk with fake terminal commands, decoy scans, fictional user traces, network monitors, and a global ping map. |
+| *(+24 placeholders)* | Ideas queued up. They show on the sphere and get promoted as experiments ship. |
 
 See [`LOG.md`](LOG.md) for a running history of what's been added and when.
 
